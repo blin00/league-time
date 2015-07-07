@@ -13,4 +13,3 @@ app.get('/', function(req, res) {
 app.listen(config.port, function() {
 	console.log((app.get('env') === 'production' ? '' : '\x07') + 'server listening on port ' + config.port);
 });
-gi
