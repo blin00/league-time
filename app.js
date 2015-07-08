@@ -14,9 +14,10 @@ function getStandardName(name) {
 }
 
 var app = express();
+app.set('view engine', 'jade');
 
 app.get('/', function(req, res) {
-    res.send('hello world');
+    res.render('index', {});
 });
 
 app.listen(config.port, function() {
