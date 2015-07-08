@@ -8,12 +8,6 @@ module.exports = function(grunt) {
                     {
                         expand: true,
                         cwd: 'src/',
-                        src: '**/*.js',
-                        dest: 'public/js/',
-                    },
-                    {
-                        expand: true,
-                        cwd: 'src/',
                         src: '**/*.css',
                         dest: 'public/css/',
                     },
@@ -26,8 +20,20 @@ module.exports = function(grunt) {
                     },
                 ],
             },
-        }
+        },
+        browserify: {
+            all: {
+                files: [
+                    {
+                        expand: true,
+                        cwd: 'src/',
+                        src: ['index.js'],
+                        dest: 'public/js/',
+                    },
+                ],
+            },
+        },
     });
     require('load-grunt-tasks')(grunt);
-    grunt.registerTask('default', ['copy']);
+    grunt.registerTask('default', ['copy', 'browserify']);
 };
