@@ -4,6 +4,7 @@
   "description": "tracks time spent on league",
   "main": "app.js",
   "scripts": {
+    "postinstall": "grunt",
     "start": "node app.js"
   },
   "author": "Brandon Lin <blin00@gmail.com>",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "grunt": "^0.4.5",
+    "grunt-cli": "^0.1.13",
     "grunt-contrib-copy": "^0.8.0",
     "load-grunt-tasks": "^3.2.0"
   }
