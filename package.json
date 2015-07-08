@@ -3,7 +3,9 @@
   "version": "0.0.1",
   "description": "tracks time spent on league",
   "main": "app.js",
-  "scripts": {},
+  "scripts": {
+    "start": "node app.js"
+  },
   "author": "Brandon Lin <blin00@gmail.com>",
   "license": "MIT",
   "private": true,
