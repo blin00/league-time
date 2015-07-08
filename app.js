@@ -5,7 +5,6 @@ var config = require('./config'),
     express = require('express'),
     compression = require('compression'),
     async = require('async'),
-    _ = require('lodash'),
     request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
 
 var API_GET_ID = 'https://' + config.region + '.api.pvp.net/api/lol/' + config.region + '/v1.4/summoner/by-name/';
@@ -47,6 +46,9 @@ function getSummonerInfo(name, callback) {
 }
 
 function getStandardName(name) {
+    if (typeof name !== 'string') {
+        return null;
+    }
     return name.toLocaleLowerCase().replace(/\s/g, '');
 }
 
@@ -59,11 +61,11 @@ app.get('/', function(req, res) {
     res.render('index', {});
 });
 
-app.get('/icon', function(req, res) {
+app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
     getSummonerInfo(req.query.summoner, function(err, result) {
-        if (err) res.send(JSON.stringify({error: err.message}));
-        else res.send(JSON.stringify({icon: result.profileIconId}));
+        if (err) res.send(JSON.stringify({error: {message: err.message}}));
+        else res.send(JSON.stringify(result));
     });
 });
 

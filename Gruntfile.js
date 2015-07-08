@@ -35,9 +35,6 @@ module.exports = function(grunt) {
                             map: false,
                         });
                     },
-                    preBundleCB: function(b) {
-                        grunt.task.run('beep');
-                    },
                 },
                 files: [
                     {
