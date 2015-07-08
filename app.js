@@ -1,6 +1,8 @@
 'use strict';
 
-var express = require('express'),
+var path = require('path'),
+    express = require('express'),
+    compression = require('compression'),
     async = require('async'),
     request = require('request'),
     config = require('./config');
@@ -15,6 +17,8 @@ function getStandardName(name) {
 
 var app = express();
 app.set('view engine', 'jade');
+app.use(compression());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', function(req, res) {
     res.render('index', {});
