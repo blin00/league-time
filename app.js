@@ -31,7 +31,6 @@ function buildCache(ttl, func) {
                 callback(err, result);
             });
         } else callback(null, obj);
-        console.log(cache.getStats());
     };
 }
 
@@ -51,7 +50,6 @@ function getRiotApi(uri, callback, tries) {
             }
             callback(null, result);
         } else if (res.statusCode === 429) {
-            console.log('throttling...');
             if (tries <= 1) {
                 callback(new Error('too many attempts'));
             } else {
@@ -85,8 +83,10 @@ app.use(compression());
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
+var production = app.get('env') === 'production';
+
 app.get('/', function(req, res) {
-    res.render('index', {});
+    res.render('index', {production: production});
 });
 
 app.get('/info', function(req, res) {
@@ -98,5 +98,5 @@ app.get('/info', function(req, res) {
 });
 
 app.listen(config.port, function() {
-    console.log((app.get('env') === 'production' ? '' : '\x07') + 'server listening on port ' + config.port);
+    console.log((production ? '' : '\x07') + 'server listening on port ' + config.port);
 });
