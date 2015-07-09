@@ -4,10 +4,14 @@ var config = require('./config'),
     path = require('path'),
     express = require('express'),
     compression = require('compression'),
-    async = require('async'),
+    favicon = require('serve-favicon'),
     request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
 
-var API_GET_ID = 'https://' + config.region + '.api.pvp.net/api/lol/' + config.region + '/v1.4/summoner/by-name/';
+var API_GET_ID = '/v1.4/summoner/by-name/';
+
+function buildApi(region) {
+    return 'https://' + region + '.api.pvp.net/api/lol/' + region;
+}
 
 function getRiotApi(uri, callback, tries) {
     if (tries === undefined) {
@@ -32,14 +36,16 @@ function getRiotApi(uri, callback, tries) {
                 setTimeout(getRiotApi, 2500, uri, callback, tries - 1);
             }
         } else {
-            callback(new Error('HTTP ' + res.statusCode));
+            var error = new Error('HTTP ' + res.statusCode);
+            error.code = res.statusCode;
+            callback(error);
         }
     });
 }
 
 function getSummonerInfo(name, callback) {
     var canonicalName = getStandardName(name);
-    getRiotApi(API_GET_ID + encodeURIComponent(canonicalName), function(err, result) {
+    getRiotApi(buildApi('na') + API_GET_ID + encodeURIComponent(canonicalName), function(err, result) {
         if (err) callback(err);
         else callback(null, result[canonicalName]);
     });
@@ -55,6 +61,7 @@ function getStandardName(name) {
 var app = express();
 app.set('view engine', 'jade');
 app.use(compression());
+app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', function(req, res) {
@@ -64,7 +71,7 @@ app.get('/', function(req, res) {
 app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
     getSummonerInfo(req.query.summoner, function(err, result) {
-        if (err) res.send(JSON.stringify({error: {message: err.message}}));
+        if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
         else res.send(JSON.stringify(result));
     });
 });
