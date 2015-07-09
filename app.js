@@ -26,7 +26,7 @@ function buildError(msg, code) {
 
 /** memoizes function(arg1, arg2, callback) */
 function buildCache(ttl, func) {
-    var cache = new NodeCache({stdTTL: ttl, useClones: false});
+    var cache = new NodeCache({stdTTL: ttl, checkperiod: 60, useClones: false});
     return function(arg1, arg2, callback) {
         var key = arg1 + ':' + arg2;
         var obj = cache.get(key);
@@ -76,7 +76,7 @@ function getRiotApi(region, api, callback, tries) {
     });
 }
 
-var getSummonerInfo = buildCache(3600, function(region, name, callback) {
+var getSummonerInfo = buildCache(60, function(region, name, callback) {
     getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
@@ -92,6 +92,7 @@ function getStandardName(name) {
 
 var app = express();
 app.set('view engine', 'jade');
+app.set('views', path.join(__dirname, 'src'));
 app.use(compression());
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
