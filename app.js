@@ -49,7 +49,7 @@ function getRiotApi(region, api, callback, tries) {
         }
         tries = 5;
     }
-    request(`https://${region}.api.pvp.net/api/lol/${region}${api}'?api_key=${config.key}`, function(err, res, body) {
+    request(`https://${region}.api.pvp.net/api/lol/${region}${api}?api_key=${config.key}`, function(err, res, body) {
         if (err) callback(err);
         else if (res.statusCode >= 200 && res.statusCode < 300) {
             var result;
