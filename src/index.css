@@ -1,8 +1,16 @@
-.form-inline {
-    margin: 50px auto 25px;
+.content {
     text-align: center;
+    margin: 50px auto 25px;
+    min-width: 300px;
+    max-width: 600px;
 }
 
-form > button {
-    margin-left: 5px;
+.footer {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+}
+
+#icon {
+    margin-top: 10px;
 }

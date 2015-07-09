@@ -7,10 +7,10 @@ module.exports = function(grunt) {
                 files: [
                     {
                         expand: true,
-                        cwd: 'node_modules/',
+                        cwd: 'node_modules',
                         flatten: true,
                         src: ['bootstrap/dist/css/bootstrap.min.css'],
-                        dest: 'public/css/',
+                        dest: 'public/css',
                     },
                 ],
             },
@@ -20,9 +20,9 @@ module.exports = function(grunt) {
                 files: [
                     {
                         expand: true,
-                        cwd: 'src/',
+                        cwd: 'src',
                         src: '**/*.css',
-                        dest: 'public/css/',
+                        dest: 'public/css',
                     }
                 ],
             },
@@ -30,6 +30,10 @@ module.exports = function(grunt) {
         browserify: {
             all: {
                 options: {
+                    browserifyOptions: {
+                        fullPaths: false,
+                        noParse: ['d3'],
+                    },
                     configure: function(b) {
                         b.plugin('minifyify', {
                             map: false,
@@ -39,9 +43,9 @@ module.exports = function(grunt) {
                 files: [
                     {
                         expand: true,
-                        cwd: 'src/',
+                        cwd: 'src',
                         src: ['index.js'],
-                        dest: 'public/js/',
+                        dest: 'public/js',
                     },
                 ],
             },
@@ -64,6 +68,7 @@ module.exports = function(grunt) {
     require('load-grunt-tasks')(grunt);
     grunt.registerTask('default', ['copy', 'cssmin', 'browserify']);
     grunt.registerTask('live', function() {
+        grunt.config('browserify.all.options.browserifyOptions.debug', true);
         grunt.config('browserify.all.options.configure', null);
         grunt.config('browserify.all.options.watch', true);
         grunt.task.run(['default', 'shell:nodemon', 'watch']);

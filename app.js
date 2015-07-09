@@ -1,6 +1,7 @@
 'use strict';
 
 var config = require('./config'),
+    _ = require('lodash'),
     path = require('path'),
     express = require('express'),
     compression = require('compression'),
@@ -8,25 +9,34 @@ var config = require('./config'),
     NodeCache = require('node-cache'),
     request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
 
+var REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
+var SORTED_REGIONS = REGIONS.slice().sort();
+
 var API_GET_ID = '/v1.4/summoner/by-name/';
 
 function buildApi(region) {
     return 'https://' + region + '.api.pvp.net/api/lol/' + region;
 }
 
-/** memoizes function(arg, callback) */
+function buildError(msg, code) {
+    var error = new Error(msg);
+    error.code = code;
+    return error;
+}
+
+/** memoizes function(arg1, arg2, callback) */
 function buildCache(ttl, func) {
     var cache = new NodeCache({stdTTL: ttl, useClones: false});
-    return function(arg, callback) {
-        var obj = cache.get(arg);
+    return function(arg1, arg2, callback) {
+        var key = arg1 + ':' + arg2;
+        var obj = cache.get(key);
         if (obj === undefined) {
-            func(arg, function(err, result) {
+            func(arg1, arg2, function(err, result) {
                 if (!err) {
-                    if (cache.getStats().keys > 10000) {
-                        console.log('flushing cache');
+                    if (cache.getStats().keys > 100000) {
                         cache.flushAll();
                     }
-                    cache.set(arg, result);
+                    cache.set(key, result);
                 }
                 callback(err, result);
             });
@@ -34,37 +44,40 @@ function buildCache(ttl, func) {
     };
 }
 
-function getRiotApi(uri, callback, tries) {
+// assumes never called on first time with tries !== undefined
+function getRiotApi(region, api, callback, tries) {
     if (tries === undefined) {
+        if (_.indexOf(SORTED_REGIONS, region, true) < 0) {
+            callback(buildError('invalid region', 400));
+            return;
+        }
         tries = 5;
     }
-    request(uri + '?api_key=' + config.key, function(err, res, body) {
+    request(buildApi(region) + api + '?api_key=' + config.key, function(err, res, body) {
         if (err) callback(err);
         else if (res.statusCode >= 200 && res.statusCode < 300) {
             var result;
             try {
                 result = JSON.parse(body);
             } catch (e) {
-                callback(new Error('JSON parse error: ' + e.message));
+                callback(buildError('JSON parse error: ' + e.message, 500));
                 return;
             }
             callback(null, result);
         } else if (res.statusCode === 429) {
             if (tries <= 1) {
-                callback(new Error('too many attempts'));
+                callback(buildError('too many attempts', 429));
             } else {
-                setTimeout(getRiotApi, 2500, uri, callback, tries - 1);
+                setTimeout(getRiotApi, 2500, region, api, callback, tries - 1);
             }
         } else {
-            var error = new Error('HTTP ' + res.statusCode);
-            error.code = res.statusCode;
-            callback(error);
+            callback(buildError('HTTP ' + res.statusCode), res.statusCode);
         }
     });
 }
 
-var getSummonerInfo = buildCache(3600, function(name, callback) {
-    getRiotApi(buildApi('na') + API_GET_ID + encodeURIComponent(name), function(err, result) {
+var getSummonerInfo = buildCache(3600, function(region, name, callback) {
+    getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
     });
@@ -86,12 +99,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 var production = app.get('env') === 'production';
 
 app.get('/', function(req, res) {
-    res.render('index', {production: production});
+    res.render('index', {regions: REGIONS, production: production});
 });
 
 app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
-    getSummonerInfo(getStandardName(req.query.summoner), function(err, result) {
+    getSummonerInfo(req.query.region, getStandardName(req.query.summoner), function(err, result) {
         if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
         else res.send(JSON.stringify(result));
     });

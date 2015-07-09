@@ -1,6 +1,6 @@
 {
   "name": "league-time",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "tracks time spent on league",
   "main": "app.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "d3": "^3.5.6",
     "express": "^4.13.1",
     "jade": "^1.11.0",
+    "lodash": "^3.10.0",
     "node-cache": "^3.0.0",
     "request": "^2.58.0",
     "serve-favicon": "^2.3.0"
