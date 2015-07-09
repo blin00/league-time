@@ -3,6 +3,9 @@
   "version": "0.0.3",
   "description": "tracks time spent on league",
   "main": "app.js",
+  "engines": {
+    "iojs": "2.3.x"
+  },
   "scripts": {
     "postinstall": "grunt",
     "start": "node app.js"
