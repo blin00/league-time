@@ -5,12 +5,34 @@ var config = require('./config'),
     express = require('express'),
     compression = require('compression'),
     favicon = require('serve-favicon'),
+    NodeCache = require('node-cache'),
     request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
 
 var API_GET_ID = '/v1.4/summoner/by-name/';
 
 function buildApi(region) {
     return 'https://' + region + '.api.pvp.net/api/lol/' + region;
+}
+
+/** memoizes function(arg, callback) */
+function buildCache(ttl, func) {
+    var cache = new NodeCache({stdTTL: ttl, useClones: false});
+    return function(arg, callback) {
+        var obj = cache.get(arg);
+        if (obj === undefined) {
+            func(arg, function(err, result) {
+                if (!err) {
+                    if (cache.getStats().keys > 10000) {
+                        console.log('flushing cache');
+                        cache.flushAll();
+                    }
+                    cache.set(arg, result);
+                }
+                callback(err, result);
+            });
+        } else callback(null, obj);
+        console.log(cache.getStats());
+    };
 }
 
 function getRiotApi(uri, callback, tries) {
@@ -43,13 +65,12 @@ function getRiotApi(uri, callback, tries) {
     });
 }
 
-function getSummonerInfo(name, callback) {
-    var canonicalName = getStandardName(name);
-    getRiotApi(buildApi('na') + API_GET_ID + encodeURIComponent(canonicalName), function(err, result) {
+var getSummonerInfo = buildCache(3600, function(name, callback) {
+    getRiotApi(buildApi('na') + API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
-        else callback(null, result[canonicalName]);
+        else callback(null, result[name]);
     });
-}
+});
 
 function getStandardName(name) {
     if (typeof name !== 'string') {
@@ -70,7 +91,7 @@ app.get('/', function(req, res) {
 
 app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
-    getSummonerInfo(req.query.summoner, function(err, result) {
+    getSummonerInfo(getStandardName(req.query.summoner), function(err, result) {
         if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
         else res.send(JSON.stringify(result));
     });
