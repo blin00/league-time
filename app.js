@@ -9,14 +9,10 @@ var config = require('./config'),
     NodeCache = require('node-cache'),
     request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
 
-var REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
-var SORTED_REGIONS = REGIONS.slice().sort();
+const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
+const SORTED_REGIONS = REGIONS.slice().sort();
 
-var API_GET_ID = '/v1.4/summoner/by-name/';
-
-function buildApi(region) {
-    return 'https://' + region + '.api.pvp.net/api/lol/' + region;
-}
+const API_GET_ID = '/v1.4/summoner/by-name/';
 
 function buildError(msg, code) {
     var error = new Error(msg);
@@ -53,7 +49,7 @@ function getRiotApi(region, api, callback, tries) {
         }
         tries = 5;
     }
-    request(buildApi(region) + api + '?api_key=' + config.key, function(err, res, body) {
+    request(`https://${region}.api.pvp.net/api/lol/${region}${api}'?api_key=${config.key}`, function(err, res, body) {
         if (err) callback(err);
         else if (res.statusCode >= 200 && res.statusCode < 300) {
             var result;

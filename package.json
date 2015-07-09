@@ -8,7 +8,7 @@
   },
   "scripts": {
     "postinstall": "grunt",
-    "start": "node app.js"
+    "start": "iojs app.js"
   },
   "author": "Brandon Lin <blin00@gmail.com>",
   "license": "MIT",
