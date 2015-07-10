@@ -98,6 +98,7 @@ var getMatchesById = buildCache(300, function(region, id, callback) {
                     for (let i = result.length - 1; i >= 0; i--) {
                         if (now - result[i].matchCreation > 30 * 24 * 60 * 60 * 1000) {
                             done = true;
+                            total -= i + 1;
                             break;
                         }
                         time += result[i].matchDuration;
