@@ -71,6 +71,6 @@ module.exports = function(grunt) {
         grunt.config('browserify.all.options.browserifyOptions.debug', true);
         grunt.config('browserify.all.options.configure', null);
         grunt.config('browserify.all.options.watch', true);
-        grunt.task.run(['default', 'shell:nodemon', 'watch']);
+        grunt.task.run(['shell:nodemon', 'default', 'watch']);
     });
 };

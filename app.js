@@ -1,8 +1,9 @@
 'use strict';
 
 var config = require('./config'),
-    _ = require('lodash'),
     path = require('path'),
+    _ = require('lodash'),
+    async = require('async'),
     express = require('express'),
     compression = require('compression'),
     favicon = require('serve-favicon'),
@@ -13,6 +14,7 @@ const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr
 const SORTED_REGIONS = REGIONS.slice().sort();
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
+const API_GET_MATCHES = '/v2.2/matchhistory/';
 
 function buildError(msg, code) {
     var error = new Error(msg);
@@ -49,7 +51,7 @@ function getRiotApi(region, api, callback, tries) {
         }
         tries = 5;
     }
-    request(`https://${region}.api.pvp.net/api/lol/${region}${api}?api_key=${config.key}`, function(err, res, body) {
+    request(`https://${region}.api.pvp.net/api/lol/${region}${api}&api_key=${config.key}`, function(err, res, body) {
         if (err) callback(err);
         else if (res.statusCode >= 200 && res.statusCode < 300) {
             var result;
@@ -64,18 +66,50 @@ function getRiotApi(region, api, callback, tries) {
             if (tries <= 1) {
                 callback(buildError('too many attempts', 429));
             } else {
-                setTimeout(getRiotApi, 2500, region, api, callback, tries - 1);
+                setTimeout(getRiotApi, 5000, region, api, callback, tries - 1);
             }
         } else {
-            callback(buildError('HTTP ' + res.statusCode), res.statusCode);
+            callback(buildError('HTTP ' + res.statusCode, res.statusCode));
         }
     });
 }
 
-var getSummonerInfo = buildCache(60, function(region, name, callback) {
-    getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
+var getSummonerInfo = buildCache(600, function(region, name, callback) {
+    getRiotApi(region, API_GET_ID + encodeURIComponent(name) + '?', function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
+    });
+});
+
+var getMatchesById = buildCache(300, function(region, id, callback) {
+    var now = Date.now();
+    var time = 0;
+    var total = 0;
+    var beginIndex = 0;
+    var done = false;
+    async.doUntil(function(callback) {
+        getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
+            if (err) callback(err);
+            else {
+                result = result.matches || [];
+                done = result.length === 0;
+                if (!done) {
+                    total += result.length;
+                    for (let i = result.length - 1; i >= 0; i--) {
+                        if (now - result[i].matchCreation > 30 * 24 * 60 * 60 * 1000) {
+                            done = true;
+                            break;
+                        }
+                        time += result[i].matchDuration;
+                    }
+                    beginIndex += 15;
+                }
+                callback(null);
+            }
+        });
+    }, function() { return done; }, function(err) {
+        if (err) callback(err);
+        else callback(null, {time, total});
     });
 });
 
@@ -101,9 +135,17 @@ app.get('/', function(req, res) {
 
 app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
-    getSummonerInfo(req.query.region, getStandardName(req.query.summoner), function(err, result) {
+    var region = req.query.region;
+    async.waterfall([
+        getSummonerInfo.bind(null, region, req.query.summoner),
+        function(info, callback) {
+            getMatchesById(region, info.id, callback);
+        },
+    ], function(err, result) {
         if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
-        else res.send(JSON.stringify(result));
+        else {
+            res.send(JSON.stringify({time: result.time, matches: result.total}));
+        }
     });
 });
 
