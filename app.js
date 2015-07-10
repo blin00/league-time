@@ -1,6 +1,6 @@
 'use strict';
 
-var config = require('./config'),
+const config = require('./config'),
     path = require('path'),
     _ = require('lodash'),
     async = require('async'),
@@ -74,14 +74,14 @@ function getRiotApi(region, api, callback, tries) {
     });
 }
 
-var getSummonerInfo = buildCache(600, function(region, name, callback) {
+const getSummonerInfo = buildCache(600, function(region, name, callback) {
     getRiotApi(region, API_GET_ID + encodeURIComponent(name) + '?', function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
     });
 });
 
-var getMatchesById = buildCache(300, function(region, id, callback) {
+const getMatchesById = buildCache(300, function(region, id, callback) {
     var now = Date.now();
     var time = 0;
     var total = 0;
@@ -121,14 +121,14 @@ function getStandardName(name) {
     return name.toLocaleLowerCase().replace(/\s/g, '');
 }
 
-var app = express();
+const app = express();
 app.set('view engine', 'jade');
 app.set('views', path.join(__dirname, 'src'));
 app.use(compression());
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-var production = app.get('env') === 'production';
+const production = app.get('env') === 'production';
 
 app.get('/', function(req, res) {
     res.render('index', {regions: REGIONS, production: production});
@@ -138,7 +138,7 @@ app.get('/info', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
     async.waterfall([
-        getSummonerInfo.bind(null, region, req.query.summoner),
+        getSummonerInfo.bind(null, region, getStandardName(req.query.summoner)),
         function(info, callback) {
             getMatchesById(region, info.id, callback);
         },
