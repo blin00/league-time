@@ -5,4 +5,5 @@ module.exports = Object.freeze({
     key: (process.env.API_KEY || fs.readFileSync('api.key').toString()).trim(),
     region: 'na',
     userAgent: 'league-time',
+    days: 7,
 });

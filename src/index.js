@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
                         d3.select('#result').text(result.error.message);
                     }
                 } else {
-                    d3.select('#result').text(Math.round(result.time / 360) / 10 + ' hrs spent on ' + result.matches + ' games - ' + Math.round(result.time / result.matches / 6) / 10 + ' min per game (past 30 days)');
+                    d3.select('#result').text(Math.round(result.time / 360) / 10 + ' hrs spent on ' + result.matches + ' games (' + result.wins + ' wins) - ' + Math.round(result.time / result.matches / 6) / 10 + ' min per game (past ' + result.days + ' days)');
                 }
             });
         }

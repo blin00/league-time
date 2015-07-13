@@ -82,11 +82,13 @@ const getSummonerInfo = buildCache(600, function(region, name, callback) {
 });
 
 const getMatchesById = buildCache(300, function(region, id, callback) {
-    var now = Date.now();
+    const now = Date.now();
     var time = 0;
-    var total = 0;
+    var numMatches = 0;
+    var wins = 0;
     var beginIndex = 0;
     var done = false;
+    // go thru matches in reverse chronological order
     async.doUntil(function(callback) {
         getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
             if (err) callback(err);
@@ -94,14 +96,15 @@ const getMatchesById = buildCache(300, function(region, id, callback) {
                 result = result.matches || [];
                 done = result.length === 0;
                 if (!done) {
-                    total += result.length;
+                    numMatches += result.length;
                     for (let i = result.length - 1; i >= 0; i--) {
-                        if (now - result[i].matchCreation > 30 * 24 * 60 * 60 * 1000) {
+                        if (now - result[i].matchCreation > config.days * 24 * 60 * 60 * 1000) {
                             done = true;
-                            total -= i + 1;
+                            numMatches -= i + 1;
                             break;
                         }
                         time += result[i].matchDuration;
+                        wins += result[i].participants[0].stats.winner ? 1 : 0;
                     }
                     beginIndex += 15;
                 }
@@ -110,7 +113,7 @@ const getMatchesById = buildCache(300, function(region, id, callback) {
         });
     }, function() { return done; }, function(err) {
         if (err) callback(err);
-        else callback(null, {time, total});
+        else callback(null, {time, wins, numMatches});
     });
 });
 
@@ -145,7 +148,7 @@ app.get('/info', function(req, res) {
     ], function(err, result) {
         if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
         else {
-            res.send(JSON.stringify({time: result.time, matches: result.total}));
+            res.send(JSON.stringify({time: result.time, matches: result.numMatches, wins: result.wins, days: config.days}));
         }
     });
 });
