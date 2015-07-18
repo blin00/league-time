@@ -61,7 +61,7 @@ gulp.task('clean', function(callback) {
 
 gulp.task('nodemon', function() {
     return gulp.src('', {read: false})
-        .pipe(shell('nodemon --ignore public --ignore src'));
+        .pipe(shell('nodemon'));
 });
 
 gulp.task('default', ['browserify', 'copy', 'mincss']);
