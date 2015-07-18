@@ -9,6 +9,15 @@ html
         if production
             script (function(l,E,a,g,u,e){l['GoogleAnalyticsObject']=g;l[g]=l[g]||function(){(l[g].q=l[g].q||[]).push(arguments)},l[g].l=+new Date();u=E.createElement(a),e=E.getElementsByTagName(a)[0];u.async=1;u.src='https://www.google-analytics.com/analytics.js';e.parentNode.insertBefore(u,e)})(window,document,'script','ga');ga('create','UA-49282813-2','auto');ga('send','pageview')
     body
+        div(style='position:absolute;top:8px;left:8px')
+            if production
+                small work in progress
+            else
+                a(href='https://league-time.herokuapp.com')
+                    small live website
+        div(style='position:absolute;top:8px;right:8px')
+            a(href='img/sona.jpg' target='_blank')
+                small something else
         div.content
             form#search
                 div.input-group
@@ -19,16 +28,8 @@ html
                     input.form-control(name='summoner' placeholder='summoner name...')
                     span.input-group-btn
                         button.btn.btn-primary(type='submit') Go
+            div#status
             div#result
         div.footer
             small league-time isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing League of Legends. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc. League of Legends © Riot Games, Inc.
-        div(style='position:absolute;top:5px;left:5px')
-            if production
-                small work in progress
-            else
-                a(href='https://league-time.herokuapp.com')
-                    small live website
-        div(style='position:absolute;top:5px;right:5px')
-            a(href='img/sona.jpg' target='_blank')
-                small something else
 ///.sh|ta$|lio|vir|jan|tl|yz|so|are|zil|ph|ie|nu|ri.$|..w|m.+g|s.an/

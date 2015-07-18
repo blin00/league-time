@@ -81,14 +81,13 @@ const getSummonerInfo = buildCache(600, function(region, name, callback) {
     });
 });
 
-const getMatchesById = buildCache(300, function(region, id, callback) {
+function getMatchesById(region, id, out, callback) {
     const now = Date.now();
-    var time = 0;
-    var numMatches = 0;
-    var wins = 0;
     var beginIndex = 0;
     var done = false;
+    var firstMatch = true;
     // go thru matches in reverse chronological order
+    out.write('{"days":' + JSON.stringify(config.days) + ',"matches":[');
     async.doUntil(function(callback) {
         getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
             if (err) callback(err);
@@ -96,15 +95,18 @@ const getMatchesById = buildCache(300, function(region, id, callback) {
                 result = result.matches || [];
                 done = result.length === 0;
                 if (!done) {
-                    numMatches += result.length;
-                    for (let i = result.length - 1; i >= 0; i--) {
-                        if (now - result[i].matchCreation > config.days * 24 * 60 * 60 * 1000) {
-                            done = true;
-                            numMatches -= i + 1;
-                            break;
-                        }
-                        time += result[i].matchDuration;
-                        wins += result[i].participants[0].stats.winner ? 1 : 0;
+                    result = _(result).reverse().takeWhile(function(match) {
+                        if (config.days < 0) return true;
+                        done = done || now - match.matchCreation > config.days * 24 * 60 * 60 * 1000;
+                        return !done;
+                    }).value();
+                    /*
+                    time += result[i].matchDuration;
+                    wins += result[i].participants[0].stats.winner ? 1 : 0;
+                    */
+                    if (result.length > 0) {
+                        out.write((firstMatch ? '' : ',') + JSON.stringify(result).slice(1, -1));
+                        firstMatch = false;
                     }
                     beginIndex += 15;
                 }
@@ -112,10 +114,13 @@ const getMatchesById = buildCache(300, function(region, id, callback) {
             }
         });
     }, function() { return done; }, function(err) {
-        if (err) callback(err);
-        else callback(null, {time, wins, numMatches});
+        if (err) callback(buildError(err.message, 500));
+        else {
+            out.end(']}');
+            callback();
+        }
     });
-});
+}
 
 function getStandardName(name) {
     if (typeof name !== 'string') {
@@ -143,13 +148,13 @@ app.get('/info', function(req, res) {
     async.waterfall([
         getSummonerInfo.bind(null, region, getStandardName(req.query.summoner)),
         function(info, callback) {
-            getMatchesById(region, info.id, callback);
+            getMatchesById(region, info.id, res, callback);
         },
     ], function(err, result) {
         if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
-        else {
+        /*else {
             res.send(JSON.stringify({time: result.time, matches: result.numMatches, wins: result.wins, days: config.days}));
-        }
+        }*/
     });
 });
 
