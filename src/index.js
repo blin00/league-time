@@ -1,7 +1,6 @@
 'use strict';
 
-var _ = require('lodash'),
-    d3 = require('d3'),
+var d3 = require('d3'),
     oboe = require('oboe');
 
 document.addEventListener('DOMContentLoaded', function(event) {
@@ -25,27 +24,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
             var things = d3.select('#result');
             things.selectAll('div.match').remove();
             oboe('/info?region=' + region + '&summoner=' + encodeURIComponent(name)).node('!.$matches.*', function(matches) {
-                /*
-                //if (!err && result.profileIconId) img.attr('src', 'https://ddragon.leagueoflegends.com/cdn/5.13.1/img/profileicon/' + result.profileIconId + '.png').classed('hidden', false);
-                form.select('button').classed('disabled', false);
-                if (err) {
-                    status.text(err.message);
-                } else if (result.error) {
-                    if (result.error.code === 404) {
-                        status.text('summoner not found');
-                    } else {
-                        status.text(result.error.message);
-                    }
-                } else {
-                    var matchStartTimes = _.pluck(result.matches, 'matchCreation').map(function(m) {
-                        return new Date(m);
-                    });
-                    console.log(matchStartTimes);
-
-                    //status.text(Math.round(result.time / 360) / 10 + ' hrs spent on ' + result.matches + ' games (' + result.wins + ' wins) - ' + Math.round(result.time / result.matches / 6) / 10 + ' min per game (past ' + result.days + ' days)');
-                }
-                */
-                things.selectAll('div.match').data(matches).enter().append('div').classed('match', true).text(function(d) {
+                things.selectAll('div.match').data(matches, function(d) { return d.matchId; }).enter().append('div').classed('match', true).text(function(d) {
                     return new Date(d.matchCreation).toString() + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.participants[0].stats.winner ? 'W' : 'L');
                 });
             }).done(function(json) {

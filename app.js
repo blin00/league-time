@@ -8,7 +8,7 @@ const config = require('./config'),
     compression = require('compression'),
     favicon = require('serve-favicon'),
     NodeCache = require('node-cache'),
-    request = require('request').defaults({headers: {'User-Agent': config.userAgent}});
+    request = require('request').defaults({gzip: true, qs: {api_key: config.key}, headers: {'User-Agent': config.userAgent}});
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
 const SORTED_REGIONS = REGIONS.slice().sort();
@@ -20,6 +20,10 @@ function buildError(msg, code) {
     var error = new Error(msg);
     error.code = code;
     return error;
+}
+
+function buildErrorJSONString(err) {
+    return JSON.stringify({error: {message: err.message, code: err.code}});
 }
 
 /** memoizes function(arg1, arg2, callback) */
@@ -51,7 +55,7 @@ function getRiotApi(region, api, callback, tries) {
         }
         tries = 5;
     }
-    request(`https://${region}.api.pvp.net/api/lol/${region}${api}&api_key=${config.key}`, function(err, res, body) {
+    request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
         if (err) callback(err);
         else if (res.statusCode >= 200 && res.statusCode < 300) {
             var result;
@@ -75,7 +79,7 @@ function getRiotApi(region, api, callback, tries) {
 }
 
 const getSummonerInfo = buildCache(600, function(region, name, callback) {
-    getRiotApi(region, API_GET_ID + encodeURIComponent(name) + '?', function(err, result) {
+    getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
     });
@@ -87,7 +91,6 @@ function getMatchesById(region, id, out, callback) {
     var done = false;
     var firstMatch = true;
     // go thru matches in reverse chronological order
-    out.write('{"days":' + JSON.stringify(config.days) + ',"matches":[');
     async.doUntil(function(callback) {
         getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
             if (err) callback(err);
@@ -100,13 +103,15 @@ function getMatchesById(region, id, out, callback) {
                         done = done || now - match.matchCreation > config.days * 24 * 60 * 60 * 1000;
                         return !done;
                     }).value();
-                    /*
-                    time += result[i].matchDuration;
-                    wins += result[i].participants[0].stats.winner ? 1 : 0;
-                    */
                     if (result.length > 0) {
-                        out.write((firstMatch ? '' : ',') + JSON.stringify(result).slice(1, -1));
-                        firstMatch = false;
+                        var prefix;
+                        if (firstMatch) {
+                            firstMatch = false;
+                            prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
+                        } else {
+                            prefix = ',';
+                        }
+                        out.write(prefix + JSON.stringify(result).slice(1, -1));
                     }
                     beginIndex += 15;
                 }
@@ -114,7 +119,13 @@ function getMatchesById(region, id, out, callback) {
             }
         });
     }, function() { return done; }, function(err) {
-        if (err) callback(buildError(err.message, 500));
+        if (err) {
+            if (firstMatch) {
+                callback(buildError(err.message, 500));
+            } else {
+                out.end('],' + buildErrorJSONString(buildError(err.message, 500)).slice(1, -1) + '}');
+            }
+        }
         else {
             out.end(']}');
             callback();
@@ -151,10 +162,7 @@ app.get('/info', function(req, res) {
             getMatchesById(region, info.id, res, callback);
         },
     ], function(err, result) {
-        if (err) res.send(JSON.stringify({error: {message: err.message, code: err.code}}));
-        /*else {
-            res.send(JSON.stringify({time: result.time, matches: result.numMatches, wins: result.wins, days: config.days}));
-        }*/
+        if (err) res.send(buildErrorJSONString(err));
     });
 });
 

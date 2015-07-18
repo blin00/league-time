@@ -5,8 +5,12 @@ var _ = require('lodash'),
     browserify = require('browserify'),
     minifyCss = require('gulp-minify-css'),
     source = require('vinyl-source-stream'),
+    uglify = require('gulp-uglify'),
     del = require('del'),
+    gulpif = require('gulp-if'),
+    buffer = require('vinyl-buffer'),
     watchify = require('watchify'),
+    jshint = require('gulp-jshint'),
     shell = require('gulp-shell');
 
 var cssGlob = 'src/**/*.css';
@@ -14,8 +18,15 @@ var cssGlob = 'src/**/*.css';
 function bf(watch) {
     function bundle() {
         return b.bundle()
-            .on('error', function() {}) // uglify already prints error message
+            .on('error', function(err) {
+                if (watch) {
+                    console.error(err.message);
+                    this.emit('end');
+                } else throw err;
+            })
             .pipe(source('index.js'))
+            .pipe(gulpif(!watch, buffer()))
+            .pipe(gulpif(!watch, uglify()))
             .pipe(gulp.dest('public/js'));
     }
     var b = browserify('src/index.js', _.assign({
@@ -26,11 +37,15 @@ function bf(watch) {
     if (watch) {
         b = watchify(b);
         b.on('update', bundle);
-    } else {
-        b.plugin('minifyify', {map: false});
     }
     return bundle();
 }
+
+gulp.task('jshint', function() {
+    return gulp.src(['*.js', 'src/**/*.js'])
+        .pipe(jshint())
+        .pipe(jshint.reporter('default'));
+});
 
 gulp.task('watch', ['default'], function() {
     gulp.watch(cssGlob, ['mincss']);
@@ -64,5 +79,5 @@ gulp.task('nodemon', function() {
         .pipe(shell('nodemon'));
 });
 
-gulp.task('default', ['browserify', 'copy', 'mincss']);
+gulp.task('default', ['jshint', 'browserify', 'copy', 'mincss']);
 gulp.task('live', ['default', 'watch', 'watchify', 'nodemon']);
