@@ -25,10 +25,14 @@ document.addEventListener('DOMContentLoaded', function(event) {
             things.selectAll('div.match').remove();
             oboe('/info?region=' + region + '&summoner=' + encodeURIComponent(name)).node('!.$matches.*', function(matches) {
                 things.selectAll('div.match').data(matches, function(d) { return d.matchId; }).enter().append('div').classed('match', true).text(function(d) {
-                    return new Date(d.matchCreation).toString() + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.participants[0].stats.winner ? 'W' : 'L');
+                    return new Date(d.matchCreation).toString() + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.winner ? 'W' : 'L');
                 });
             }).done(function(json) {
-                status.text('done');
+                if (json.error) {
+                    status.text('error: ' + json.error.message);
+                } else {
+                    status.text('done');
+                }
                 form.select('button').classed('disabled', false);
             }).fail(function(err) {
                 status.text('error: ' + JSON.stringify(err));

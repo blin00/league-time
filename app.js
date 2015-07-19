@@ -102,6 +102,13 @@ function getMatchesById(region, id, out, callback) {
                         if (config.days < 0) return true;
                         done = done || now - match.matchCreation > config.days * 24 * 60 * 60 * 1000;
                         return !done;
+                    }).map(function(match) {
+                        return {
+                            matchId: match.matchId,
+                            matchCreation: match.matchCreation,
+                            matchDuration: match.matchDuration,
+                            winner: match.participants[0].stats.winner,
+                        };
                     }).value();
                     if (result.length > 0) {
                         var prefix;
