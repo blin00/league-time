@@ -10,11 +10,15 @@
 }
 
 #status {
-    margin-bottom: 20px;
+    margin: 20px auto;
+}
+
+#matches {
+    margin: 20px auto;
 }
 
 .footer {
-    margin: 30px 15px 10px;
+    margin: 10px 20px;
 }
 
 #icon {
