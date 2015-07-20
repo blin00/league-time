@@ -6,6 +6,10 @@ var d3 = require('d3'),
     reduce = require('lodash/collection/reduce'),
     pluck = require('lodash/collection/pluck');
 
+require('d3-tip')(d3);
+
+var tip;
+
 document.addEventListener('DOMContentLoaded', function(event) {
     var img = d3.select('#icon');
     var form = d3.select('#search');
@@ -13,6 +17,10 @@ document.addEventListener('DOMContentLoaded', function(event) {
     var matchDisplay = d3.select('#matches');
     var stats = d3.select('#stats');
     var graph = d3.select('#graph');
+    // only certain methods are proxied :\
+    tip = d3.tip().attr('class', 'd3-tip').offset([-10, 0]).html(function(d) {
+        return Math.round(d.time * 10) / 10 + ' hrs';
+    });
     if (localStorage) {
         var region = localStorage.getItem('region');
         if (region) form.select('select').property('value', region);
@@ -75,10 +83,13 @@ function padNum(num, len) {
 }
 
 function drawBarGraph(graph, matches) {
+    var defaultColor = 'steelblue';
+    var hoverColor = 'lightsteelblue';
     matches = getMatchesByDay(matches);
     var width = 700, height = 200, margin = { top: 20, left: 50, right: 20, bottom: 100 };
     var svg = graph.append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom)
         .append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+    svg.call(tip);
     var x = d3.scale.ordinal().rangeRoundBands([0, width], 0.05);
     var y = d3.scale.linear().range([height, 0]);
     var xAxis = d3.svg.axis().scale(x).orient('bottom').tickFormat(d3.time.format('%Y-%m-%d'));
@@ -89,8 +100,16 @@ function drawBarGraph(graph, matches) {
         .selectAll('text').style('text-anchor', 'end').attr('dx', '-.8em').attr('dy', '-.55em').attr('transform', 'rotate(-90)');
     svg.append('g').classed('axis', true).call(yAxis)
         .append('text').attr('transform', 'rotate(-90)').attr('y', 6).attr('dy', '.71em').style('text-anchor', 'end').text('Time (hr)');
-    svg.selectAll('bar').data(matches).enter()
-        .append('rect').style('fill', 'steelblue').attr('x', function(d) { return x(d.day); }).attr('width', x.rangeBand()).attr('y', function(d) { return y(d.time); }).attr('height', function(d) { return height - y(d.time); });
+    svg.selectAll('rect.bar').data(matches).enter()
+        .append('rect').classed('bar', true).style('fill', defaultColor).attr('x', function(d) { return x(d.day); }).attr('width', x.rangeBand()).attr('y', function(d) { return y(d.time); }).attr('height', function(d) { return height - y(d.time); })
+        .on('mouseover', function(d) {
+            d3.select(this).style('fill', hoverColor);
+            tip.show(d);
+        })
+        .on('mouseout', function(d) {
+            d3.select(this).style('fill', defaultColor);
+            tip.hide(d);
+        });
 }
 
 function getMatchesByDay(matches) {
