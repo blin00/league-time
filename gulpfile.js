@@ -8,6 +8,7 @@ var _ = require('lodash'),
     uglify = require('gulp-uglify'),
     del = require('del'),
     gulpif = require('gulp-if'),
+    size = require('gulp-size'),
     buffer = require('vinyl-buffer'),
     watchify = require('watchify'),
     jshint = require('gulp-jshint'),
@@ -27,6 +28,7 @@ function bf(watch) {
             .pipe(source('index.js'))
             .pipe(gulpif(!watch, buffer()))
             .pipe(gulpif(!watch, uglify()))
+            .pipe(gulpif(!watch, size({gzip: true})))
             .pipe(gulp.dest('public/js'));
     }
     var b = browserify('src/index.js', _.assign({

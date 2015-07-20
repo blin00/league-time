@@ -1,8 +1,10 @@
 'use strict';
 
 var d3 = require('d3'),
-    _ = require('lodash'),
-    oboe = require('oboe');
+    oboe = require('oboe'),
+    sum = require('lodash/math/sum'),
+    reduce = require('lodash/collection/reduce'),
+    pluck = require('lodash/collection/pluck');
 
 document.addEventListener('DOMContentLoaded', function(event) {
     var img = d3.select('#icon');
@@ -10,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
     var status = d3.select('#status');
     var matchDisplay = d3.select('#matches');
     var stats = d3.select('#stats');
+    var graph = d3.select('#graph');
     if (localStorage) {
         var region = localStorage.getItem('region');
         if (region) form.select('select').property('value', region);
@@ -27,7 +30,8 @@ document.addEventListener('DOMContentLoaded', function(event) {
             status.text('loading...');
             matchDisplay.selectAll('div.match').remove();
             stats.selectAll('div').remove();
-            oboe('/info?region=' + region + '&summoner=' + encodeURIComponent(name)).node('!.$matches.*', function(matches) {
+            graph.selectAll('svg').remove();
+            oboe('/matches?region=' + region + '&summoner=' + encodeURIComponent(name)).node('!.$matches.*', function(matches) {
                 matchDisplay.selectAll('div.match').data(matches, function(d) { return d.matchId; }).enter().append('div').classed('match', true).text(function(d) {
                     return dateFormatter(new Date(d.matchCreation)) + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.winner ? 'W' : 'L');
                 });
@@ -38,17 +42,19 @@ document.addEventListener('DOMContentLoaded', function(event) {
                     status.text('done');
                 }
                 form.select('button').classed('disabled', false);
-                var matches = json.matches || [];
+                var matches = (json.matches || []).slice().reverse();
                 var days = json.days || 0;
-                var total = _.reduce(_.pluck(matches, 'matchDuration'), _.add);
-                var wins = _.reduce(_.pluck(matches, 'winner'), function(total, n) { return total + (n ? 1 : 0); }, 0);
+                var total = sum(pluck(matches, 'matchDuration'));
+                var wins = reduce(pluck(matches, 'winner'), function(total, n) { return total + (n ? 1 : 0); }, 0);
                 stats.append('div').text('matches: ' + matches.length);
                 stats.append('div').text('wins: ' + wins);
                 stats.append('div').text('win percentage: ' + Math.round(wins / matches.length * 1000) / 10 + '%');
                 stats.append('div').text('total time: ' + Math.round(total / 360) / 10 + ' hrs');
                 stats.append('div').text('avg time/match: ' + getPrettyDuration(total / matches.length));
                 stats.append('div').text('avg time/day: ' + Math.round(total / days / 360) / 10 + ' hrs');
+                drawBarGraph(graph, matches);
             }).fail(function(err) {
+                console.log(err);
                 status.text('error: ' + JSON.stringify(err));
                 form.select('button').classed('disabled', false);
             });
@@ -66,4 +72,41 @@ function padNum(num, len) {
     num = Math.round(num).toString();
     while (num.length < len) num = '0' + num;
     return num;
+}
+
+function drawBarGraph(graph, matches) {
+    matches = getMatchesByDay(matches);
+    var width = 700, height = 200, margin = { top: 20, left: 50, right: 20, bottom: 100 };
+    var svg = graph.append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom)
+        .append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+    var x = d3.scale.ordinal().rangeRoundBands([0, width], 0.05);
+    var y = d3.scale.linear().range([height, 0]);
+    var xAxis = d3.svg.axis().scale(x).orient('bottom').tickFormat(d3.time.format('%Y-%m-%d'));
+    var yAxis = d3.svg.axis().scale(y).orient('left').ticks(10);
+    x.domain(pluck(matches, 'day'));
+    y.domain([0, d3.max(matches, function(d) { return d.time; })]);
+    svg.append('g').classed('axis', true).attr('transform', 'translate(0,' + height + ')').call(xAxis)
+        .selectAll('text').style('text-anchor', 'end').attr('dx', '-.8em').attr('dy', '-.55em').attr('transform', 'rotate(-90)');
+    svg.append('g').classed('axis', true).call(yAxis)
+        .append('text').attr('transform', 'rotate(-90)').attr('y', 6).attr('dy', '.71em').style('text-anchor', 'end').text('Time (hr)');
+    svg.selectAll('bar').data(matches).enter()
+        .append('rect').style('fill', 'steelblue').attr('x', function(d) { return x(d.day); }).attr('width', x.rangeBand()).attr('y', function(d) { return y(d.time); }).attr('height', function(d) { return height - y(d.time); });
+}
+
+function getMatchesByDay(matches) {
+    if (matches.length === 0) return [];
+    var days = d3.time.days(d3.time.day(new Date(matches[0].matchCreation)), matches[matches.length - 1].matchCreation + 1);
+    var result = new Array(days.length);
+    result[0] = {day: days[0], matches: 0, time: 0};
+    var i, j = 0, len;
+    for (i = 0, len = matches.length; i < len; i++) {
+        var match = matches[i];
+        while (+d3.time.day(new Date(match.matchCreation)) !== +days[j]) {
+            j++;
+            result[j] = {day: days[j], matches: 0, time: 0};
+        }
+        result[j].matches++;
+        result[j].time += match.matchDuration / 3600;
+    }
+    return result;
 }

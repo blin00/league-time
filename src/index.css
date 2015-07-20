@@ -1,12 +1,13 @@
-.content {
+#search {
     text-align: center;
     margin: 50px auto 25px;
     min-width: 300px;
     max-width: 600px;
+    margin-bottom: 20px;
 }
 
-#search {
-    margin-bottom: 20px;
+.content {
+    text-align: center;
 }
 
 #status {
@@ -27,4 +28,15 @@
 
 .match {
     font-family: monospace;
+}
+
+.axis {
+    font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: #000;
+    shape-rendering: crispEdges;
 }

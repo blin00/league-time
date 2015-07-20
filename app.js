@@ -3,6 +3,8 @@
 const config = require('./config'),
     path = require('path'),
     _ = require('lodash'),
+    http = require('http'),
+    d3 = require('d3'),
     async = require('async'),
     express = require('express'),
     compression = require('compression'),
@@ -66,14 +68,14 @@ function getRiotApi(region, api, callback, tries) {
                 return;
             }
             callback(null, result);
-        } else if (res.statusCode === 429) {
+        } else if (res.statusCode === 429 || res.statusCode == 503 || res.statusCode == 504) {
             if (tries <= 1) {
-                callback(buildError('too many attempts', 429));
+                callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
             } else {
                 setTimeout(getRiotApi, 5000, region, api, callback, tries - 1);
             }
         } else {
-            callback(buildError('HTTP ' + res.statusCode, res.statusCode));
+            callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
         }
     });
 }
@@ -86,7 +88,9 @@ const getSummonerInfo = buildCache(600, function(region, name, callback) {
 });
 
 function getMatchesById(region, id, out, callback) {
-    const now = Date.now();
+    const now = new Date();
+    const nowDay = d3.time.day(now);
+    const backDay = config.days < 0 ? null : d3.time.day.offset(nowDay, -config.days);
     var beginIndex = 0;
     var done = false;
     var firstMatch = true;
@@ -98,9 +102,10 @@ function getMatchesById(region, id, out, callback) {
                 result = result.matches || [];
                 done = result.length === 0;
                 if (!done) {
+                    // note: reverse mutates result, but that doesn't matter here
                     result = _(result).reverse().takeWhile(function(match) {
-                        if (config.days < 0) return true;
-                        done = done || now - match.matchCreation > config.days * 24 * 60 * 60 * 1000;
+                        if (!backDay) return true;
+                        done = done || match.matchCreation < +backDay;
                         return !done;
                     }).map(function(match) {
                         return {
@@ -160,7 +165,7 @@ app.get('/', function(req, res) {
     res.render('index', {regions: REGIONS, production: production});
 });
 
-app.get('/info', function(req, res) {
+app.get('/matches', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
     async.waterfall([
