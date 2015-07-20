@@ -72,7 +72,7 @@ function getRiotApi(region, api, callback, tries) {
             if (tries <= 1) {
                 callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
             } else {
-                setTimeout(getRiotApi, 5000, region, api, callback, tries - 1);
+                setTimeout(getRiotApi, 2000, region, api, callback, tries - 1);
             }
         } else {
             callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
