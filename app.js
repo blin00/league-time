@@ -30,14 +30,14 @@ function buildErrorJSONString(err) {
 
 /** memoizes function(arg1, arg2, callback) */
 function buildCache(ttl, func) {
-    var cache = new NodeCache({stdTTL: ttl, checkperiod: 60, useClones: false});
+    var cache = new NodeCache({stdTTL: ttl, checkperiod: config.checkPeriod, useClones: false});
     return function(arg1, arg2, callback) {
         var key = arg1 + ':' + arg2;
         var obj = cache.get(key);
         if (obj === undefined) {
             func(arg1, arg2, function(err, result) {
                 if (!err) {
-                    if (cache.getStats().keys > 100000) {
+                    if (cache.getStats().keys > config.maxCache) {
                         cache.flushAll();
                     }
                     cache.set(key, result);
@@ -80,14 +80,22 @@ function getRiotApi(region, api, callback, tries) {
     });
 }
 
-const getSummonerInfo = buildCache(600, function(region, name, callback) {
+const getSummonerInfo = buildCache(30 * 60, function(region, name, callback) {
     getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
     });
 });
 
+const matchCache = new NodeCache({stdTTL: 10 * 60, checkperiod: config.checkPeriod});
 function getMatchesById(region, id, out, callback) {
+    var cacheKey = region + ':' + id;
+    var cached = matchCache.get(cacheKey);
+    if (cached !== undefined) {
+        callback(null, cached);
+        return;
+    }
+    cached = '';
     const now = new Date();
     const nowDay = d3.time.day(now);
     const backDay = config.days < 0 ? null : d3.time.day.offset(nowDay, -config.days);
@@ -116,14 +124,16 @@ function getMatchesById(region, id, out, callback) {
                         };
                     }).value();
                     if (result.length > 0) {
-                        var prefix;
+                        var prefix, chunk;
                         if (firstMatch) {
                             firstMatch = false;
                             prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
                         } else {
                             prefix = ',';
                         }
-                        out.write(prefix + JSON.stringify(result).slice(1, -1));
+                        chunk = prefix + JSON.stringify(result).slice(1, -1);
+                        out.write(chunk);
+                        cached += chunk;
                     }
                     beginIndex += 15;
                 }
@@ -136,11 +146,16 @@ function getMatchesById(region, id, out, callback) {
                 callback(buildError(err.message, 500));
             } else {
                 out.end('],' + buildErrorJSONString(buildError(err.message, 500)).slice(1, -1) + '}');
+                callback(null);
             }
         }
         else {
             out.end(']}');
-            callback();
+            if (matchCache.getStats().keys > config.maxCache) {
+                matchCache.flushAll();
+            }
+            matchCache.set(cacheKey, cached + ']}');
+            callback(null);
         }
     });
 }
@@ -175,6 +190,9 @@ app.get('/matches', function(req, res) {
         },
     ], function(err, result) {
         if (err) res.send(buildErrorJSONString(err));
+        else if (result) {
+            res.send(result);
+        }
     });
 });
 
