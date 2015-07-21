@@ -68,6 +68,11 @@ document.addEventListener('DOMContentLoaded', function(event) {
             });
         }
     });
+    d3.select('#matchesToggle').on('click', function() {
+        var hidden = matchDisplay.classed('hidden');
+        matchDisplay.classed('hidden', !hidden);
+        d3.select(this).text((hidden ? 'hide' : 'show') + ' match data');
+    });
 });
 
 function getPrettyDuration(duration) {
@@ -86,7 +91,7 @@ function drawBarGraph(graph, matches) {
     var defaultColor = 'steelblue';
     var hoverColor = 'lightsteelblue';
     matches = getMatchesByDay(matches);
-    var width = 700, height = 200, margin = { top: 20, left: 50, right: 20, bottom: 100 };
+    var width = 750, height = 250, margin = { top: 20, left: 25, right: 25, bottom: 75 };
     var svg = graph.append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom)
         .append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
     svg.call(tip);
