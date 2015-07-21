@@ -80,14 +80,14 @@ function getRiotApi(region, api, callback, tries) {
     });
 }
 
-const getSummonerInfo = buildCache(30 * 60, function(region, name, callback) {
+const getSummonerInfo = buildCache(60 * 60, function(region, name, callback) {
     getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
         if (err) callback(err);
         else callback(null, result[name]);
     });
 });
 
-const matchCache = new NodeCache({stdTTL: 10 * 60, checkperiod: config.checkPeriod});
+const matchCache = new NodeCache({stdTTL: 30 * 60, checkperiod: config.checkPeriod});
 function getMatchesById(region, id, out, callback) {
     var cacheKey = region + ':' + id;
     var cached = matchCache.get(cacheKey);
