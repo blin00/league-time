@@ -168,13 +168,15 @@ function getStandardName(name) {
 }
 
 const app = express();
+const production = app.get('env') === 'production';
+
 app.set('view engine', 'jade');
+app.set('view options', {pretty: !production});
 app.set('views', path.join(__dirname, 'src'));
 app.use(compression());
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const production = app.get('env') === 'production';
 
 app.get('/', function(req, res) {
     res.render('index', {regions: REGIONS, production: production});
