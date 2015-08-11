@@ -4,7 +4,7 @@
   "description": "tracks time spent on league",
   "main": "app.js",
   "engines": {
-    "iojs": "2.4.x"
+    "iojs": "3.x.x"
   },
   "scripts": {
     "postinstall": "gulp",

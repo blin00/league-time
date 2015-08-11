@@ -14,9 +14,17 @@ const config = require('./config'),
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
 const SORTED_REGIONS = REGIONS.slice().sort();
+const MAX_REGION_LENGTH = _(REGIONS).map(function(d) { return d.length; }).max();
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCHES = '/v2.2/matchhistory/';
+
+function validateRegion(region) {
+    if (typeof region !== 'string' || region.length > MAX_REGION_LENGTH || _.indexOf(SORTED_REGIONS, region, true) < 0) {
+        return false;
+    }
+    return true;
+}
 
 function buildError(msg, code) {
     var error = new Error(msg);
@@ -51,7 +59,7 @@ function buildCache(ttl, func) {
 // assumes never called on first time with tries !== undefined
 function getRiotApi(region, api, callback, tries) {
     if (tries === undefined) {
-        if (_.indexOf(SORTED_REGIONS, region, true) < 0) {
+        if (!validateRegion(region)) {
             callback(buildError('invalid region', 400));
             return;
         }
