@@ -181,6 +181,7 @@ const production = app.get('env') === 'production';
 app.set('view engine', 'jade');
 app.locals.pretty = !production;
 app.set('views', path.join(__dirname, 'src'));
+app.set('x-powered-by', false);
 app.use(compression());
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
