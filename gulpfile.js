@@ -14,6 +14,7 @@ var _ = require('lodash'),
     jshint = require('gulp-jshint'),
     shell = require('gulp-shell');
 
+var jsGlob = 'src/**/*.js';
 var cssGlob = 'src/**/*.css';
 
 function bf(watch) {
@@ -44,7 +45,7 @@ function bf(watch) {
 }
 
 gulp.task('jshint', function() {
-    return gulp.src(['*.js', 'src/**/*.js'])
+    return gulp.src(['*.js', jsGlob])
         .pipe(jshint())
         .pipe(jshint.reporter('default'));
 });
