@@ -119,11 +119,11 @@ function getMatchesById(region, id, out, callback) {
                 done = result.length === 0;
                 if (!done) {
                     // note: reverse mutates result, but that doesn't matter here
-                    result = _(result).reverse().takeWhile(function(match) {
+                    result = _(result).takeRightWhile(function(match) {
                         if (!backDay) return true;
                         done = done || match.matchCreation < +backDay;
                         return !done;
-                    }).map(function(match) {
+                    }).reverse().map(function(match) {
                         return {
                             matchId: match.matchId,
                             matchCreation: match.matchCreation,
