@@ -38,7 +38,7 @@ function buildErrorJSONString(err) {
 
 /** memoizes function(arg1, arg2, callback) */
 function buildCache(ttl, func) {
-    var cache = new NodeCache({stdTTL: ttl, checkperiod: config.checkPeriod, useClones: false});
+    const cache = new NodeCache({stdTTL: ttl, checkperiod: config.checkPeriod, useClones: false});
     return function(arg1, arg2, callback) {
         var key = arg1 + ':' + arg2;
         var obj = cache.get(key);
@@ -183,7 +183,7 @@ app.locals.pretty = !production;
 app.set('views', path.join(__dirname, 'src'));
 app.set('x-powered-by', false);
 app.use(compression());
-app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+app.use(favicon(path.join(__dirname, 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', function(req, res) {

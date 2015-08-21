@@ -7,11 +7,12 @@ var _ = require('lodash'),
     source = require('vinyl-source-stream'),
     uglify = require('gulp-uglify'),
     del = require('del'),
-    gulpif = require('gulp-if'),
     size = require('gulp-size'),
     buffer = require('vinyl-buffer'),
     watchify = require('watchify'),
     jshint = require('gulp-jshint'),
+    gutil = require('gulp-util'),
+    filelog = require('gulp-filelog'),
     shell = require('gulp-shell');
 
 var jsGlob = 'src/**/*.js';
@@ -22,14 +23,15 @@ function bf(watch) {
         return b.bundle()
             .on('error', function(err) {
                 if (watch) {
-                    console.error(err.message);
+                    gutil.log(err);
                     this.emit('end');
                 } else throw err;
             })
             .pipe(source('index.js'))
-            .pipe(gulpif(!watch, buffer()))
-            .pipe(gulpif(!watch, uglify()))
-            .pipe(gulpif(!watch, size({gzip: true})))
+            .pipe(watch ? buffer() : gutil.noop())
+            .pipe(watch ? uglify() : gutil.noop())
+            .pipe(filelog('browserify'))
+            .pipe(watch ? size({gzip: true}) : gutil.noop())
             .pipe(gulp.dest('public/js'));
     }
     var b = browserify('src/index.js', _.assign({
@@ -74,7 +76,7 @@ gulp.task('mincss', function() {
 });
 
 gulp.task('clean', function(callback) {
-    del(['public/css', 'public/js'], callback);
+    del(['public'], callback);
 });
 
 gulp.task('nodemon', function() {
