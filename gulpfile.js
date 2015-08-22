@@ -1,15 +1,15 @@
 'use strict';
 
 var _ = require('lodash'),
-    gulp = require('gulp'),
-    browserify = require('browserify'),
-    minifyCss = require('gulp-minify-css'),
-    source = require('vinyl-source-stream'),
-    uglify = require('gulp-uglify'),
     del = require('del'),
-    size = require('gulp-size'),
+    browserify = require('browserify'),
+    gulp = require('gulp'),
+    source = require('vinyl-source-stream'),
     buffer = require('vinyl-buffer'),
     watchify = require('watchify'),
+    minifyCss = require('gulp-minify-css'),
+    uglify = require('gulp-uglify'),
+    size = require('gulp-size'),
     jshint = require('gulp-jshint'),
     gutil = require('gulp-util'),
     filelog = require('gulp-filelog'),
@@ -23,22 +23,24 @@ function bf(watch) {
         return b.bundle()
             .on('error', function(err) {
                 if (watch) {
-                    gutil.log(err);
+                    gutil.log(err.message);
                     this.emit('end');
                 } else throw err;
             })
             .pipe(source('index.js'))
-            .pipe(watch ? gutil.noop() : buffer())
+            .pipe(buffer())
             .pipe(watch ? gutil.noop() : uglify())
             .pipe(filelog('browserify'))
-            .pipe(watch ? size({gzip: true}) : gutil.noop())
+            .pipe(size({gzip: !watch}))
             .pipe(gulp.dest('public/js'));
     }
-    var b = browserify('src/index.js', _.assign({
+    var opts = {
         noParse: ['d3'],
         fullPaths: false,
-        debug: true,
-    }, watch ? watchify.args : {debug: false}));
+        debug: watch,
+    };
+    if (watch) _.assign(watch, watchify.args);
+    var b = browserify('src/index.js', opts);
     if (watch) {
         b = watchify(b);
         b.on('update', bundle);
@@ -72,6 +74,7 @@ gulp.task('copy', function() {
 gulp.task('mincss', function() {
     return gulp.src(cssGlob)
         .pipe(minifyCss())
+        .pipe(filelog('mincss'))
         .pipe(gulp.dest('public/css'));
 });
 

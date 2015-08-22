@@ -80,6 +80,9 @@ function getRiotApi(region, api, callback, tries) {
             if (tries <= 1) {
                 callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
             } else {
+                if (res.statusCode == 429) {
+                    console.log('warning: throttled by HTTP 429');
+                }
                 setTimeout(getRiotApi, 2000, region, api, callback, tries - 1);
             }
         } else {
@@ -140,8 +143,9 @@ function getMatchesById(region, id, out, callback) {
                             prefix = ',';
                         }
                         chunk = prefix + JSON.stringify(result).slice(1, -1);
-                        out.write(chunk);
                         cached += chunk;
+                        out.write(chunk);
+                        out.flush();
                     }
                     beginIndex += 15;
                 }
