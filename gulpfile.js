@@ -28,8 +28,8 @@ function bf(watch) {
                 } else throw err;
             })
             .pipe(source('index.js'))
-            .pipe(watch ? buffer() : gutil.noop())
-            .pipe(watch ? uglify() : gutil.noop())
+            .pipe(watch ? gutil.noop() : buffer())
+            .pipe(watch ? gutil.noop() : uglify())
             .pipe(filelog('browserify'))
             .pipe(watch ? size({gzip: true}) : gutil.noop())
             .pipe(gulp.dest('public/js'));
