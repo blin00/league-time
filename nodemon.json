@@ -1,6 +1,3 @@
 {
-    "ignore": ["public", "src", "gulpfile.js"],
-    "execMap": {
-        "js": "iojs"
-    }
+    "ignore": ["public", "src", "gulpfile.js"]
 }

@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 matchDisplay.selectAll('div.match').data(matches, function(d) { return d.matchId; }).enter().append('div').classed('match', true).text(function(d) {
                     return dateFormatter(new Date(d.matchCreation)) + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.winner ? 'W' : 'L');
                 });
-                drawBarGraphThrottled(graph, matches || []);
+                drawBarGraphThrottled(graph, getMatchesByDay(matches));
             }).done(function(json) {
                 if (json.error) {
                     status.text('error: ' + json.error.message);
@@ -54,18 +54,17 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 }
                 form.select('button').classed('disabled', false);
                 var matches = json.matches || [];
-                // force immediate draw
+                // force immediate draw of bar graph
+                var matchesByDay = getMatchesByDay(matches);
                 drawBarGraphThrottled.cancel();
-                drawBarGraph(graph, matches);
+                drawBarGraph(graph, matchesByDay);
                 var days = json.days || 0;
                 var total = sum(pluck(matches, 'matchDuration'));
-                var wins = reduce(pluck(matches, 'winner'), function(total, n) { return total + (n ? 1 : 0); }, 0);
-                stats.append('div').text('matches: ' + matches.length);
-                stats.append('div').text('wins: ' + wins);
-                stats.append('div').text('win percentage: ' + Math.round(wins / matches.length * 1000) / 10 + '%');
+                var wins = reduce(pluck(matches, 'winner'), function(total, winner) { return total + (winner ? 1 : 0); }, 0);
+                stats.append('div').text('won ' + wins + '/' + matches.length + ' games (' + Math.round(wins / matches.length * 1000) / 10 + '%)');
                 stats.append('div').text('total time: ' + Math.round(total / 360) / 10 + ' hrs');
-                stats.append('div').text('avg time/match: ' + getPrettyDuration(total / matches.length));
-                stats.append('div').text('avg time/day: ' + Math.round(total / days / 360) / 10 + ' hrs');
+                stats.append('div').text('avg time/game: ' + getPrettyDuration(total / matches.length));
+                stats.append('div').text('avg time/day: ' + Math.round(total / matchesByDay.length / 360) / 10 + ' hrs');
             }).fail(function(err) {
                 console.log(err);
                 status.text('error: ' + JSON.stringify(err));
@@ -83,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
 function getPrettyDuration(duration) {
     var minutes = Math.floor(duration / 60);
     var seconds = duration - minutes * 60;
-    return padNum(minutes, 2) + ':' + padNum(seconds, 2);
+    return minutes + ':' + padNum(seconds, 2);
 }
 
 function padNum(num, len) {
@@ -92,8 +91,7 @@ function padNum(num, len) {
     return num;
 }
 
-function drawBarGraph(graph, matches) {
-    matches = getMatchesByDay(matches);
+function drawBarGraph(graph, matchesByDay) {
     var defaultColor = 'steelblue';
     var hoverColor = 'lightsteelblue';
     var width = 750, height = 250, margin = { top: 20, left: 25, right: 25, bottom: 75 };
@@ -104,13 +102,13 @@ function drawBarGraph(graph, matches) {
     var y = d3.scale.linear().range([height, 0]);
     var xAxis = d3.svg.axis().scale(x).orient('bottom').tickFormat(d3.time.format('%Y-%m-%d'));
     var yAxis = d3.svg.axis().scale(y).orient('left').ticks(10);
-    x.domain(pluck(matches, 'day'));
-    y.domain([0, d3.max(matches, function(d) { return d.time; })]);
+    x.domain(pluck(matchesByDay, 'day'));
+    y.domain([0, d3.max(matchesByDay, function(d) { return d.time; })]);
     root.append('g').classed('axis', true).attr('transform', 'translate(0,' + height + ')').call(xAxis)
         .selectAll('text').style('text-anchor', 'end').attr('dx', '-.8em').attr('dy', '-.55em').attr('transform', 'rotate(-90)');
     root.append('g').classed('axis', true).call(yAxis)
         .append('text').attr('transform', 'rotate(-90)').attr('y', 6).attr('dy', '.71em').style('text-anchor', 'end').text('Time (hr)');
-    root.selectAll('rect.bar').data(matches).enter()
+    root.selectAll('rect.bar').data(matchesByDay).enter()
         .append('rect').classed('bar', true).style('fill', defaultColor).attr('x', function(d) { return x(d.day); }).attr('width', x.rangeBand()).attr('y', function(d) { return y(d.time); }).attr('height', function(d) { return height - y(d.time); })
         .on('mouseover', function(d) {
             d3.select(this).style('fill', hoverColor);

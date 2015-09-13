@@ -5,12 +5,13 @@ const config = require('./config'),
     _ = require('lodash'),
     http = require('http'),
     d3 = require('d3'),
+    memjs = require('memjs'),
     async = require('async'),
     express = require('express'),
     compression = require('compression'),
     favicon = require('serve-favicon'),
     NodeCache = require('node-cache'),
-    request = require('request').defaults({gzip: true, qs: {api_key: config.key}, headers: {'User-Agent': config.userAgent}});
+    request = require('request').defaults({gzip: true, qs: {api_key: config.riotKey}, headers: {'User-Agent': config.userAgent}});
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
 const SORTED_REGIONS = REGIONS.slice().sort();
@@ -18,6 +19,8 @@ const MAX_REGION_LENGTH = _(REGIONS).map(function(d) { return d.length; }).max()
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCHES = '/v2.2/matchhistory/';
+
+const memcache = memjs.Client.create(config.memcachedServer, {username: config.memcachedUser, password: config.memcachedPass, expires: 30 * 60});
 
 function validateRegion(region) {
     if (typeof region !== 'string' || region.length > MAX_REGION_LENGTH || _.indexOf(SORTED_REGIONS, region, true) < 0) {
@@ -98,76 +101,71 @@ const getSummonerInfo = buildCache(60 * 60, function(region, name, callback) {
     });
 });
 
-const matchCache = new NodeCache({stdTTL: 30 * 60, checkperiod: config.checkPeriod});
 function getMatchesById(region, id, out, callback) {
     var cacheKey = region + ':' + id;
-    var cached = matchCache.get(cacheKey);
-    if (cached !== undefined) {
-        callback(null, cached);
-        return;
-    }
-    cached = '';
-    const now = new Date();
-    const nowDay = d3.time.day(now);
-    const backDay = config.days < 0 ? null : d3.time.day.offset(nowDay, -config.days);
-    var beginIndex = 0;
-    var done = false;
-    var firstMatch = true;
-    // go thru matches in reverse chronological order
-    async.doUntil(function(callback) {
-        getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
-            if (err) callback(err);
-            else {
-                result = result.matches || [];
-                done = result.length === 0;
-                if (!done) {
-                    // note: reverse mutates result, but that doesn't matter here
-                    result = _(result).takeRightWhile(function(match) {
-                        if (!backDay) return true;
-                        done = done || match.matchCreation < +backDay;
-                        return !done;
-                    }).reverse().map(function(match) {
-                        return {
-                            matchId: match.matchId,
-                            matchCreation: match.matchCreation,
-                            matchDuration: match.matchDuration,
-                            winner: match.participants[0].stats.winner,
-                        };
-                    }).value();
-                    if (result.length > 0) {
-                        var prefix, chunk;
-                        if (firstMatch) {
-                            firstMatch = false;
-                            prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
-                        } else {
-                            prefix = ',';
-                        }
-                        chunk = prefix + JSON.stringify(result).slice(1, -1);
-                        cached += chunk;
-                        out.write(chunk);
-                        out.flush();
-                    }
-                    beginIndex += 15;
-                }
-                callback(null);
-            }
-        });
-    }, function() { return done; }, function(err) {
-        if (err) {
-            if (firstMatch) {
-                callback(buildError(err.message, 500));
-            } else {
-                out.end('],' + buildErrorJSONString(buildError(err.message, 500)).slice(1, -1) + '}');
-                callback(null);
-            }
-        }
+    memcache.get(cacheKey, function(err, value, key) {
+        if (!err && value) callback(null, value);
         else {
-            out.end(']}');
-            if (matchCache.getStats().keys > config.maxCache) {
-                matchCache.flushAll();
-            }
-            matchCache.set(cacheKey, cached + ']}');
-            callback(null);
+            var toCache = '';
+            const now = new Date();
+            const nowDay = d3.time.day(now);
+            const backDay = config.days < 0 ? null : d3.time.day.offset(nowDay, -config.days);
+            var beginIndex = 0;
+            var done = false;
+            var firstMatch = true;
+            // go thru matches in reverse chronological order
+            async.doUntil(function(callback) {
+                getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
+                    if (err) callback(err);
+                    else {
+                        result = result.matches || [];
+                        done = result.length === 0;
+                        if (!done) {
+                            // note: reverse mutates result, but that doesn't matter here
+                            result = _(result).takeRightWhile(function(match) {
+                                if (!backDay) return true;
+                                done = done || match.matchCreation < +backDay;
+                                return !done;
+                            }).reverse().map(function(match) {
+                                return {
+                                    matchId: match.matchId,
+                                    matchCreation: match.matchCreation,
+                                    matchDuration: match.matchDuration,
+                                    winner: match.participants[0].stats.winner,
+                                };
+                            }).value();
+                            if (result.length > 0) {
+                                var prefix, chunk;
+                                if (firstMatch) {
+                                    firstMatch = false;
+                                    prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
+                                } else {
+                                    prefix = ',';
+                                }
+                                chunk = prefix + JSON.stringify(result).slice(1, -1);
+                                toCache += chunk;
+                                out.write(chunk);
+                                out.flush();
+                            }
+                            beginIndex += 15;
+                        }
+                        callback(null);
+                    }
+                });
+            }, function() { return done; }, function(err) {
+                if (err) {
+                    if (firstMatch) {
+                        callback(buildError(err.message, 500));
+                    } else {
+                        out.end('],' + buildErrorJSONString(buildError(err.message, 500)).slice(1, -1) + '}');
+                        callback(null);
+                    }
+                } else {
+                    out.end(']}');
+                    memcache.set(cacheKey, toCache + ']}');
+                    callback(null);
+                }
+            });
         }
     });
 }
