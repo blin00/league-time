@@ -10,7 +10,6 @@ const config = require('./config'),
     express = require('express'),
     compression = require('compression'),
     favicon = require('serve-favicon'),
-    NodeCache = require('node-cache'),
     request = require('request').defaults({gzip: true, qs: {api_key: config.riotKey}, headers: {'User-Agent': config.userAgent}});
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
@@ -21,6 +20,15 @@ const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCHES = '/v2.2/matchhistory/';
 
 const memcache = memjs.Client.create(config.memcachedServer, {username: config.memcachedUser, password: config.memcachedPass, expires: 30 * 60});
+
+function getCachePromise(key) {
+    return new Promise(function(resolve, reject) {
+        memcache.get(key, function(err, value/*, key*/) {
+            if (!err && value) resolve(value.toString());
+            else reject(err);
+        });
+    });
+}
 
 function validateRegion(region) {
     if (typeof region !== 'string' || region.length > MAX_REGION_LENGTH || _.indexOf(SORTED_REGIONS, region, true) < 0) {
@@ -37,26 +45,6 @@ function buildError(msg, code) {
 
 function buildErrorJSONString(err) {
     return JSON.stringify({error: {message: err.message, code: err.code}});
-}
-
-/** memoizes function(arg1, arg2, callback) */
-function buildCache(ttl, func) {
-    const cache = new NodeCache({stdTTL: ttl, checkperiod: config.checkPeriod, useClones: false});
-    return function(arg1, arg2, callback) {
-        var key = arg1 + ':' + arg2;
-        var obj = cache.get(key);
-        if (obj === undefined) {
-            func(arg1, arg2, function(err, result) {
-                if (!err) {
-                    if (cache.getStats().keys > config.maxCache) {
-                        cache.flushAll();
-                    }
-                    cache.set(key, result);
-                }
-                callback(err, result);
-            });
-        } else callback(null, obj);
-    };
 }
 
 // assumes never called on first time with tries !== undefined
@@ -94,17 +82,56 @@ function getRiotApi(region, api, callback, tries) {
     });
 }
 
-const getSummonerInfo = buildCache(60 * 60, function(region, name, callback) {
-    getRiotApi(region, API_GET_ID + encodeURIComponent(name), function(err, result) {
-        if (err) callback(err);
-        else callback(null, result[name]);
+function getRiotApiPromise(region, api, tries) {
+    var timeout = 2000;
+    tries = tries || 5;
+    return new Promise(function(resolve, reject) {
+        if (!validateRegion(region)) {
+            reject(buildError('invalid region', 400));
+        } else {
+            doRequest();
+        }
+        function doRequest() {
+            request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
+                if (err) {
+                    err.code = 500;
+                    reject(err);
+                } else if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve(body);
+                } else if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 504) {
+                    if (tries <= 1) {
+                        reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
+                    } else {
+                        if (res.statusCode == 429) {
+                            console.log('warning: throttled by HTTP 429');
+                        }
+                        tries--;
+                        setTimeout(doRequest, timeout);
+                        timeout += 500;
+                    }
+                } else {
+                    reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
+                }
+            });
+        }
+    }).then(JSON.parse);
+}
+
+function getSummonerIdPromise(region, name) {
+    var cacheKey = region + ':' + name;
+    return getCachePromise(cacheKey).catch(function(err) {
+        return getRiotApiPromise(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
+            var id = result[name].id.toString();
+            memcache.set(cacheKey, id);
+            return id;
+        });
     });
-});
+}
 
 function getMatchesById(region, id, out, callback) {
-    var cacheKey = region + ':' + id;
+    var cacheKey = region + '!' + id;
     memcache.get(cacheKey, function(err, value, key) {
-        if (!err && value) callback(null, value);
+        if (!err && value) callback(null, value.toString());
         else {
             var toCache = '';
             const now = new Date();
@@ -115,42 +142,41 @@ function getMatchesById(region, id, out, callback) {
             var firstMatch = true;
             // go thru matches in reverse chronological order
             async.doUntil(function(callback) {
-                getRiotApi(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`, function(err, result) {
-                    if (err) callback(err);
-                    else {
-                        result = result.matches || [];
-                        done = result.length === 0;
-                        if (!done) {
-                            // note: reverse mutates result, but that doesn't matter here
-                            result = _(result).takeRightWhile(function(match) {
-                                if (!backDay) return true;
-                                done = done || match.matchCreation < +backDay;
-                                return !done;
-                            }).reverse().map(function(match) {
-                                return {
-                                    matchId: match.matchId,
-                                    matchCreation: match.matchCreation,
-                                    matchDuration: match.matchDuration,
-                                    winner: match.participants[0].stats.winner,
-                                };
-                            }).value();
-                            if (result.length > 0) {
-                                var prefix, chunk;
-                                if (firstMatch) {
-                                    firstMatch = false;
-                                    prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
-                                } else {
-                                    prefix = ',';
-                                }
-                                chunk = prefix + JSON.stringify(result).slice(1, -1);
-                                toCache += chunk;
-                                out.write(chunk);
-                                out.flush();
+                getRiotApiPromise(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`).then(function(result) {
+                    result = result.matches || [];
+                    done = result.length === 0;
+                    if (!done) {
+                        // note: reverse mutates result, but that doesn't matter here
+                        result = _(result).takeRightWhile(function(match) {
+                            if (!backDay) return true;
+                            done = done || match.matchCreation < +backDay;
+                            return !done;
+                        }).reverse().map(function(match) {
+                            return {
+                                matchId: match.matchId,
+                                matchCreation: match.matchCreation,
+                                matchDuration: match.matchDuration,
+                                winner: match.participants[0].stats.winner,
+                            };
+                        }).value();
+                        if (result.length > 0) {
+                            var prefix, chunk;
+                            if (firstMatch) {
+                                firstMatch = false;
+                                prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
+                            } else {
+                                prefix = ',';
                             }
-                            beginIndex += 15;
+                            chunk = prefix + JSON.stringify(result).slice(1, -1);
+                            toCache += chunk;
+                            out.write(chunk);
+                            out.flush();
                         }
-                        callback(null);
+                        beginIndex += 15;
                     }
+                    callback(null);
+                }).catch(function(err) {
+                    callback(err);
                 });
             }, function() { return done; }, function(err) {
                 if (err) {
@@ -195,16 +221,20 @@ app.get('/', function(req, res) {
 app.get('/matches', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
-    async.waterfall([
-        getSummonerInfo.bind(null, region, getStandardName(req.query.summoner)),
-        function(info, callback) {
-            getMatchesById(region, info.id, res, callback);
-        },
-    ], function(err, result) {
-        if (err) res.send(buildErrorJSONString(err));
-        else if (result) {
-            res.send(result);
-        }
+    var summoner = req.query.summoner;
+    if (!validateRegion(region)) {
+        res.send(buildErrorJSONString(buildError('invalid region', 400)));
+        return;
+    }
+    getSummonerIdPromise(region, summoner).then(function(id) {
+        getMatchesById(region, id, res, function(err, result) {
+            if (err) res.send(buildErrorJSONString(err));
+            else if (result) {
+                res.send(result);
+            }
+        });
+    }).catch(function(err) {
+        res.send(buildErrorJSONString(err));
     });
 });
 
