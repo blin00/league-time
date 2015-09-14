@@ -1,7 +1,7 @@
 'use strict';
 
 var _ = require('lodash'),
-    del = require('del'),
+    rimraf = require('rimraf'),
     browserify = require('browserify'),
     gulp = require('gulp'),
     source = require('vinyl-source-stream'),
@@ -79,7 +79,7 @@ gulp.task('mincss', function() {
 });
 
 gulp.task('clean', function(callback) {
-    del(['public'], callback);
+    rimraf('public', callback);
 });
 
 gulp.task('nodemon', function() {
