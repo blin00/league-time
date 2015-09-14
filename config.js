@@ -5,8 +5,6 @@ const config = {
     riotKey: process.env.RIOT_API_KEY || fs.readFileSync('api.key').toString().trim(),
     userAgent: 'league-time',
     days: 30,
-    checkPeriod: 120,   // seconds
-    maxCache: 10000,
 };
 
 if (process.env.MEMCACHEDCLOUD_SERVERS && process.env.MEMCACHEDCLOUD_USERNAME && process.env.MEMCACHEDCLOUD_PASSWORD) {
