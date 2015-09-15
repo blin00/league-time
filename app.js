@@ -52,11 +52,6 @@ function buildErrorJSONString(err) {
 function getRiotApi(region, api, tries) {
     tries = tries || 5;
     return new Promise(function(resolve, reject) {
-        if (!validateRegion(region)) {
-            reject(buildError('invalid region', 400));
-        } else {
-            doRequest();
-        }
         function doRequest() {
             // console.log(`doRequest('https://${region}.api.pvp.net/api/lol/${region}${api}')`);
             request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
@@ -81,10 +76,12 @@ function getRiotApi(region, api, tries) {
                 }
             });
         }
+        doRequest();
     }).then(JSON.parse);
 }
 
 function getSummonerId(region, name) {
+    if (name === null) return new Promise(function(resolve, reject) { reject(buildError('invalid summoner name', 400)); });
     var cacheKey = region + ':' + name;
     return getCache(cacheKey).catch(function(err) {
         return getRiotApi(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
@@ -179,7 +176,11 @@ app.get('/', function(req, res) {
 app.get('/matches', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
-    var summoner = req.query.summoner;
+    if (!validateRegion(region)) {
+        res.send(buildErrorJSONString(buildError('invalid region', 400)));
+        return;
+    }
+    var summoner = getStandardName(req.query.summoner);
     getSummonerId(region, summoner).then(function(id) {
         return getMatchListById(region, id, res);
     }).then(function(result) {
