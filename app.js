@@ -3,6 +3,7 @@
 const config = require('./config'),
     path = require('path'),
     _ = require('lodash'),
+    bluebird = require('bluebird'),
     http = require('http'),
     d3 = require('d3'),
     memjs = require('memjs'),
@@ -17,11 +18,12 @@ const SORTED_REGIONS = REGIONS.slice().sort();
 const MAX_REGION_LENGTH = _(REGIONS).map(function(d) { return d.length; }).max();
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
-const API_GET_MATCHES = '/v2.2/matchhistory/';
+const API_GET_MATCH = '/v2.2/match/';
+const API_GET_MATCHLIST = '/v2.2/matchlist/by-summoner/';
 
-const memcache = memjs.Client.create(config.memcachedServer, {username: config.memcachedUser, password: config.memcachedPass, expires: 30 * 60});
+const memcache = memjs.Client.create(config.memcachedServer, {username: config.memcachedUser, password: config.memcachedPass});
 
-function getCachePromise(key) {
+function getCache(key) {
     return new Promise(function(resolve, reject) {
         memcache.get(key, function(err, value/*, key*/) {
             if (!err && value) resolve(value.toString());
@@ -47,43 +49,7 @@ function buildErrorJSONString(err) {
     return JSON.stringify({error: {message: err.message, code: err.code}});
 }
 
-// assumes never called on first time with tries !== undefined
-function getRiotApi(region, api, callback, tries) {
-    if (tries === undefined) {
-        if (!validateRegion(region)) {
-            callback(buildError('invalid region', 400));
-            return;
-        }
-        tries = 5;
-    }
-    request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
-        if (err) callback(err);
-        else if (res.statusCode >= 200 && res.statusCode < 300) {
-            var result;
-            try {
-                result = JSON.parse(body);
-            } catch (e) {
-                callback(buildError('JSON parse error: ' + e.message, 500));
-                return;
-            }
-            callback(null, result);
-        } else if (res.statusCode === 429 || res.statusCode == 503 || res.statusCode == 504) {
-            if (tries <= 1) {
-                callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
-            } else {
-                if (res.statusCode == 429) {
-                    console.log('warning: throttled by HTTP 429');
-                }
-                setTimeout(getRiotApi, 2000, region, api, callback, tries - 1);
-            }
-        } else {
-            callback(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
-        }
-    });
-}
-
-function getRiotApiPromise(region, api, tries) {
-    var timeout = 2000;
+function getRiotApi(region, api, tries) {
     tries = tries || 5;
     return new Promise(function(resolve, reject) {
         if (!validateRegion(region)) {
@@ -92,22 +58,23 @@ function getRiotApiPromise(region, api, tries) {
             doRequest();
         }
         function doRequest() {
+            // console.log(`doRequest('https://${region}.api.pvp.net/api/lol/${region}${api}')`);
             request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
                 if (err) {
                     err.code = 500;
                     reject(err);
                 } else if (res.statusCode >= 200 && res.statusCode < 300) {
                     resolve(body);
-                } else if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 504) {
+                } else if (res.statusCode === 429/* || res.statusCode === 503 || res.statusCode === 504*/) {
+                    var timeout = res.headers['retry-after'];
+                    if (timeout) timeout = (+timeout) * 1000 + 500;
+                    else timeout = 2000;
+                    console.log('warning: throttled by HTTP 429 - waiting ' + timeout + ' ms');
                     if (tries <= 1) {
                         reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
                     } else {
-                        if (res.statusCode == 429) {
-                            console.log('warning: throttled by HTTP 429');
-                        }
                         tries--;
                         setTimeout(doRequest, timeout);
-                        timeout += 500;
                     }
                 } else {
                     reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
@@ -117,81 +84,72 @@ function getRiotApiPromise(region, api, tries) {
     }).then(JSON.parse);
 }
 
-function getSummonerIdPromise(region, name) {
+function getSummonerId(region, name) {
     var cacheKey = region + ':' + name;
-    return getCachePromise(cacheKey).catch(function(err) {
-        return getRiotApiPromise(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
+    return getCache(cacheKey).catch(function(err) {
+        return getRiotApi(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
             var id = result[name].id.toString();
-            memcache.set(cacheKey, id);
+            memcache.set(cacheKey, id, null, 60 * 60);
             return id;
         });
     });
 }
 
-function getMatchesById(region, id, out, callback) {
+function getMatchListById(region, id, out) {
     var cacheKey = region + '!' + id;
-    memcache.get(cacheKey, function(err, value, key) {
-        if (!err && value) callback(null, value.toString());
-        else {
-            var toCache = '';
-            const now = new Date();
-            const nowDay = d3.time.day(now);
-            const backDay = config.days < 0 ? null : d3.time.day.offset(nowDay, -config.days);
-            var beginIndex = 0;
-            var done = false;
-            var firstMatch = true;
-            // go thru matches in reverse chronological order
-            async.doUntil(function(callback) {
-                getRiotApiPromise(region, API_GET_MATCHES + id + `?beginIndex=${beginIndex}&endIndex=${beginIndex + 15}`).then(function(result) {
-                    result = result.matches || [];
-                    done = result.length === 0;
-                    if (!done) {
-                        // note: reverse mutates result, but that doesn't matter here
-                        result = _(result).takeRightWhile(function(match) {
-                            if (!backDay) return true;
-                            done = done || match.matchCreation < +backDay;
-                            return !done;
-                        }).reverse().map(function(match) {
-                            return {
-                                matchId: match.matchId,
-                                matchCreation: match.matchCreation,
-                                matchDuration: match.matchDuration,
-                                winner: match.participants[0].stats.winner,
-                            };
-                        }).value();
-                        if (result.length > 0) {
-                            var prefix, chunk;
-                            if (firstMatch) {
-                                firstMatch = false;
-                                prefix = '{"days":' + JSON.stringify(config.days) + ',"matches":[';
-                            } else {
-                                prefix = ',';
-                            }
-                            chunk = prefix + JSON.stringify(result).slice(1, -1);
-                            toCache += chunk;
-                            out.write(chunk);
-                            out.flush();
-                        }
-                        beginIndex += 15;
-                    }
-                    callback(null);
-                }).catch(function(err) {
-                    callback(err);
-                });
-            }, function() { return done; }, function(err) {
-                if (err) {
-                    if (firstMatch) {
-                        callback(buildError(err.message, 500));
-                    } else {
-                        out.end('],' + buildErrorJSONString(buildError(err.message, 500)).slice(1, -1) + '}');
-                        callback(null);
-                    }
-                } else {
-                    out.end(']}');
-                    memcache.set(cacheKey, toCache + ']}');
-                    callback(null);
-                }
+    var cached;
+    var first = true;
+    const nowDay = d3.time.day(new Date());
+    const backDay = config.days < 0 ? 0 : +d3.time.day.offset(nowDay, -config.days);
+    return Promise.all([
+        getCache(cacheKey).then(JSON.parse).catch(function(err) { return []; }),
+        getRiotApi(region, API_GET_MATCHLIST + id + `?beginTime=${backDay}`),
+    ]).then(function(values) {
+        cached = values[0];
+        var matchList = values[1].matches;
+
+        cached = _.takeWhile(cached, function(match) {
+            return match.matchCreation >= backDay;
+        });
+
+        var firstId = cached.length === 0 ? null : cached[0].matchId;
+
+        var matchIds = _(matchList).takeWhile(function(match) {
+            return match.matchId !== firstId;
+        }).pluck('matchId').value();
+        if (matchIds.length === 0) return [];
+
+        return bluebird.promisify(async.mapSeries)(matchIds, function(matchId, callback) {
+            getRiotApi(region, API_GET_MATCH + matchId).then(function(match) {
+                var prefix = first ? '{"matches":[' : ',';
+                first = false;
+                match = {
+                    matchId: match.matchId,
+                    matchCreation: match.matchCreation,
+                    matchDuration: match.matchDuration,
+                    winner: match.participants[0].stats.winner,
+                };
+                out.write(prefix + JSON.stringify(match));
+                out.flush();
+                callback(null, match);
+            }).catch(function(err) {
+                callback(err);
             });
+        });
+    }).then(function(matches) {
+        if (matches.length === 0) {
+            return cached;
+        } else {
+            out.end(']}');
+            matches = matches.concat(cached);
+            memcache.set(cacheKey, JSON.stringify(matches));
+            return null;
+        }
+    }).catch(function(err) {
+        if (first) throw err;
+        else {
+            out.end('],' + buildErrorJSONString(err).slice(1));
+            return null;
         }
     });
 }
@@ -222,17 +180,10 @@ app.get('/matches', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
     var summoner = req.query.summoner;
-    if (!validateRegion(region)) {
-        res.send(buildErrorJSONString(buildError('invalid region', 400)));
-        return;
-    }
-    getSummonerIdPromise(region, summoner).then(function(id) {
-        getMatchesById(region, id, res, function(err, result) {
-            if (err) res.send(buildErrorJSONString(err));
-            else if (result) {
-                res.send(result);
-            }
-        });
+    getSummonerId(region, summoner).then(function(id) {
+        return getMatchListById(region, id, res);
+    }).then(function(result) {
+        if (result !== null) res.send({matches: result});
     }).catch(function(err) {
         res.send(buildErrorJSONString(err));
     });

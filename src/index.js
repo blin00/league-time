@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 var matchesByDay = getMatchesByDay(matches);
                 drawBarGraphThrottled.cancel();
                 drawBarGraph(graph, matchesByDay);
-                var days = json.days || 0;
                 var total = sum(pluck(matches, 'matchDuration'));
                 var wins = reduce(pluck(matches, 'winner'), function(total, winner) { return total + (winner ? 1 : 0); }, 0);
                 stats.append('div').text('won ' + wins + '/' + matches.length + ' games (' + Math.round(wins / matches.length * 1000) / 10 + '%)');
