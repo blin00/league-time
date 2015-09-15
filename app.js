@@ -140,7 +140,7 @@ function getMatchListById(region, id, out) {
         if (matches.length === 0) {
             return cached;
         } else {
-            out.end(']}');
+            out.end(',' + JSON.stringify(cached).slice(1) + '}');
             matches = matches.concat(cached);
             memcache.set(cacheKey, JSON.stringify(matches));
             return null;
