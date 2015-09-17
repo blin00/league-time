@@ -50,7 +50,7 @@ function buildErrorJSONString(err) {
 }
 
 function getRiotApi(region, api, tries) {
-    tries = tries || 5;
+    tries = tries || 3;
     return new Promise(function(resolve, reject) {
         function doRequest() {
             // console.log(`doRequest('https://${region}.api.pvp.net/api/lol/${region}${api}')`);
@@ -83,10 +83,10 @@ function getRiotApi(region, api, tries) {
 function getSummonerId(region, name) {
     if (name === null) return new Promise(function(resolve, reject) { reject(buildError('invalid summoner name', 400)); });
     var cacheKey = region + ':' + name;
-    return getCache(cacheKey).catch(function(err) {
+    return getCache(cacheKey).then(function(id) { return +id; }).catch(function(err) {
         return getRiotApi(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
-            var id = result[name].id.toString();
-            memcache.set(cacheKey, id, null, 60 * 60);
+            var id = result[name].id;
+            memcache.set(cacheKey, id.toString(), null, 60 * 60);
             return id;
         });
     });
@@ -118,17 +118,30 @@ function getMatchListById(region, id, out) {
 
         return bluebird.promisify(async.mapSeries)(matchIds, function(matchId, callback) {
             getRiotApi(region, API_GET_MATCH + matchId).then(function(match) {
-                var prefix = first ? '{"matches":[' : ',';
-                first = false;
-                match = {
+                var newMatch = {
                     matchId: match.matchId,
                     matchCreation: match.matchCreation,
                     matchDuration: match.matchDuration,
-                    winner: match.participants[0].stats.winner,
+                    winner: false,
                 };
-                out.write(prefix + JSON.stringify(match));
+                var pid = -1;
+                for (var participantIdentity of match.participantIdentities) {
+                    if (participantIdentity.player.summonerId === id) {
+                        pid = participantIdentity.participantId;
+                        break;
+                    }
+                }
+                for (var participant of match.participants) {
+                    if (participant.participantId === pid) {
+                        newMatch.winner = participant.stats.winner;
+                        break;
+                    }
+                }
+                var prefix = first ? '{"matches":[' : ',';
+                first = false;
+                out.write(prefix + JSON.stringify(newMatch));
                 out.flush();
-                callback(null, match);
+                callback(null, newMatch);
             }).catch(function(err) {
                 callback(err);
             });
@@ -137,12 +150,16 @@ function getMatchListById(region, id, out) {
         if (matches.length === 0) {
             return cached;
         } else {
-            out.end(',' + JSON.stringify(cached).slice(1) + '}');
+            if (cached.length > 0) {
+                out.write(',' + JSON.stringify(cached).slice(1, -1));
+            }
+            out.end(']}');
             matches = matches.concat(cached);
             memcache.set(cacheKey, JSON.stringify(matches));
             return null;
         }
     }).catch(function(err) {
+        console.error(err);
         if (first) throw err;
         else {
             out.end('],' + buildErrorJSONString(err).slice(1));
