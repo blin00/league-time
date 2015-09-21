@@ -60,15 +60,17 @@ function getRiotApi(region, api, tries) {
                     reject(err);
                 } else if (res.statusCode >= 200 && res.statusCode < 300) {
                     resolve(body);
-                } else if (res.statusCode === 429/* || res.statusCode === 503 || res.statusCode === 504*/) {
+                } else if (res.statusCode !== 404 && res.statusCode !== 422) {
                     var timeout = res.headers['retry-after'];
                     if (timeout) timeout = (+timeout) * 1000 + 500;
-                    else timeout = 2000;
-                    console.log('warning: throttled by HTTP 429 - waiting ' + timeout + ' ms');
+                    else timeout = 1000;
                     if (tries <= 1) {
                         reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
                     } else {
                         tries--;
+                        if (res.statusCode === 429) {
+                            console.log('warning: throttled by HTTP 429 - waiting ' + timeout + ' ms');
+                        }
                         setTimeout(doRequest, timeout);
                     }
                 } else {
