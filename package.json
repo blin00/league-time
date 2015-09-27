@@ -1,10 +1,10 @@
 {
   "name": "league-time",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "tracks time spent on league",
   "main": "app.js",
   "engines": {
-    "node": "^4.1.0"
+    "node": "^4.1.1"
   },
   "scripts": {
     "postinstall": "gulp",
@@ -15,7 +15,7 @@
   "private": true,
   "dependencies": {
     "async": "^1.4.2",
-    "bluebird": "^2.10.0",
+    "bluebird": "^2.10.1",
     "bootstrap": "^3.3.5",
     "compression": "^1.5.2",
     "d3": "^3.5.6",
@@ -25,11 +25,11 @@
     "lodash": "^3.10.1",
     "memjs": "^0.8.6",
     "oboe": "^2.1.2",
-    "request": "^2.62.0",
+    "request": "^2.64.0",
     "serve-favicon": "^2.3.0"
   },
   "devDependencies": {
-    "browserify": "^11.1.0",
+    "browserify": "^11.2.0",
     "gulp": "^3.9.0",
     "gulp-filelog": "^0.4.1",
     "gulp-jshint": "^1.11.2",
