@@ -2,6 +2,7 @@
     Additionally, env var NPM_CONFIG_PRODUCTION must be set to false i.e.
     heroku config:set NPM_CONFIG_PRODUCTION=false
 */
+'use strict';
 
 const fs = require('fs');
 
