@@ -9,8 +9,11 @@ html
         if production
             script (function(l,E,a,g,u,e){l['GoogleAnalyticsObject']=g;l[g]=l[g]||function(){(l[g].q=l[g].q||[]).push(arguments)},l[g].l=+new Date();u=E.createElement(a),e=E.getElementsByTagName(a)[0];u.async=1;u.src='https://www.google-analytics.com/analytics.js';e.parentNode.insertBefore(u,e)})(window,document,'script','ga');ga('create','UA-49282813-2','auto');ga('send','pageview')
     body
-        div(style='position:absolute;top:8px;left:8px')
-            if !production
+        div(style='position:absolute;top:8px;right:8px')
+            if production
+                a(href='https://github.com/blin00/league-time')
+                    small github
+            else
                 a(href='https://league-time.herokuapp.com')
                     small live website
         div

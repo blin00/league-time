@@ -1,3 +1,1 @@
-```
-    heroku config:set NPM_CONFIG_PRODUCTION=false
-```
+Currently deployed to https://league-time.herokuapp.com/. See `config.js` for configuration options.

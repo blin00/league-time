@@ -212,3 +212,4 @@ app.get('/matches', function(req, res) {
 app.listen(config.port, function() {
     console.log((production ? '' : '\x07') + 'server listening on port ' + config.port);
 });
+// Copyright (c) Brandon Lin 2016

@@ -1,3 +1,8 @@
+/*
+    Additionally, env var NPM_CONFIG_PRODUCTION must be set to false i.e.
+    heroku config:set NPM_CONFIG_PRODUCTION=false
+*/
+
 const fs = require('fs');
 
 const config = {
