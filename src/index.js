@@ -2,10 +2,10 @@
 
 var d3 = require('d3'),
     oboe = require('oboe'),
-    sum = require('lodash/math/sum'),
-    reduce = require('lodash/collection/reduce'),
-    pluck = require('lodash/collection/pluck'),
-    throttle = require('lodash/function/throttle');
+    sum = require('lodash/sum'),
+    reduce = require('lodash/reduce'),
+    map = require('lodash/map'),
+    throttle = require('lodash/throttle');
 
 require('d3-tip')(d3);
 
@@ -58,8 +58,8 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 var matchesByDay = getMatchesByDay(matches);
                 drawBarGraphThrottled.cancel();
                 drawBarGraph(graph, matchesByDay);
-                var total = sum(pluck(matches, 'matchDuration'));
-                var wins = reduce(pluck(matches, 'winner'), function(total, winner) { return total + (winner ? 1 : 0); }, 0);
+                var total = sum(map(matches, 'matchDuration'));
+                var wins = reduce(map(matches, 'winner'), function(total, winner) { return total + (winner ? 1 : 0); }, 0);
                 stats.append('div').text('won ' + wins + '/' + matches.length + ' games (' + Math.round(wins / matches.length * 1000) / 10 + '%)');
                 stats.append('div').text('total time: ' + Math.round(total / 360) / 10 + ' hrs');
                 stats.append('div').text('avg time/game: ' + getPrettyDuration(total / matches.length));
@@ -101,7 +101,7 @@ function drawBarGraph(graph, matchesByDay) {
     var y = d3.scale.linear().range([height, 0]);
     var xAxis = d3.svg.axis().scale(x).orient('bottom').tickFormat(d3.time.format('%Y-%m-%d'));
     var yAxis = d3.svg.axis().scale(y).orient('left').ticks(10);
-    x.domain(pluck(matchesByDay, 'day'));
+    x.domain(map(matchesByDay, 'day'));
     y.domain([0, d3.max(matchesByDay, function(d) { return d.time; })]);
     root.append('g').classed('axis', true).attr('transform', 'translate(0,' + height + ')').call(xAxis)
         .selectAll('text').style('text-anchor', 'end').attr('dx', '-.8em').attr('dy', '-.55em').attr('transform', 'rotate(-90)');

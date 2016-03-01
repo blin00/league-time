@@ -15,7 +15,7 @@ const config = require('./config'),
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
 const SORTED_REGIONS = REGIONS.slice().sort();
-const MAX_REGION_LENGTH = _(REGIONS).map(function(d) { return d.length; }).max();
+const MAX_REGION_LENGTH = _(REGIONS).maxBy(function(d) { return d.length; });
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCH = '/v2.2/match/';
@@ -33,7 +33,7 @@ function getCache(key) {
 }
 
 function validateRegion(region) {
-    if (typeof region !== 'string' || region.length > MAX_REGION_LENGTH || _.indexOf(SORTED_REGIONS, region, true) < 0) {
+    if (typeof region !== 'string' || region.length > MAX_REGION_LENGTH || _.keyBy(SORTED_REGIONS, region, true) < 0) {
         return false;
     }
     return true;
@@ -115,7 +115,7 @@ function getMatchListById(region, id, out) {
 
         var matchIds = _(matchList).takeWhile(function(match) {
             return match.matchId !== firstId;
-        }).pluck('matchId').value();
+        }).map('matchId').value();
         if (matchIds.length === 0) return [];
 
         return bluebird.promisify(async.mapSeries)(matchIds, function(matchId, callback) {
