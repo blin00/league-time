@@ -64,7 +64,7 @@ function getRiotApi(region, api, tries) {
                 } else if (res.statusCode !== 404 && res.statusCode !== 422) {
                     var timeout = res.headers['retry-after'];
                     if (timeout) timeout = (+timeout) * 1000 + 500;
-                    else timeout = 1000;
+                    else timeout = 3333;
                     if (tries <= 1) {
                         reject(buildError(http.STATUS_CODES[res.statusCode], res.statusCode));
                     } else {
