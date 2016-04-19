@@ -50,11 +50,12 @@ function buildErrorJSONString(err) {
 }
 
 function getRiotApi(region, api, tries) {
-    tries = tries || 3;
+    tries = tries || 5;
     return new Promise(function(resolve, reject) {
         function doRequest() {
-            // console.log(`doRequest('https://${region}.api.pvp.net/api/lol/${region}${api}')`);
-            request(`https://${region}.api.pvp.net/api/lol/${region}${api}`, function(err, res, body) {
+            var theRequest = `https://${region}.api.pvp.net/api/lol/${region}${api}`;
+            console.log(`doRequest(${theRequest})`);
+            request(theRequest, function(err, res, body) {
                 if (err) {
                     err.code = 500;
                     reject(err);
