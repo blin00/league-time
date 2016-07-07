@@ -15,7 +15,7 @@ const config = require('./config'),
 
 const REGIONS = ['na', 'br', 'eune', 'euw', 'kr', 'lan', 'las', 'oce', 'ru', 'tr'];
 const SORTED_REGIONS = REGIONS.slice().sort();
-const MAX_REGION_LENGTH = _(REGIONS).maxBy(function(d) { return d.length; });
+const MAX_REGION_LENGTH = _(REGIONS).maxBy('length');
 
 const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCH = '/v2.2/match/';
@@ -190,7 +190,7 @@ app.use(favicon(path.join(__dirname, 'favicon.ico')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', function(req, res) {
-    res.render('index', {regions: REGIONS, production: production});
+    res.render('index', {regions: REGIONS, production: production, dnt: req.get('DNT') === '1'});
 });
 
 app.get('/matches', function(req, res) {
