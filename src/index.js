@@ -12,24 +12,8 @@ require('d3-tip')(d3);
 var tip;
 
 document.addEventListener('DOMContentLoaded', function(event) {
-    var img = d3.select('#icon');
-    var form = d3.select('#search');
-    var status = d3.select('#status');
-    var matchDisplay = d3.select('#matches');
-    var stats = d3.select('#stats');
-    // only certain methods (not classed) are proxied :\
-    tip = d3.tip().attr('class', 'd3-tip').offset([-10, 0]).html(function(d) {
-        return Math.round(d.time * 10) / 10 + ' hrs';
-    });
-    var graph = d3.select('#graph').append('svg').attr('width', '0').attr('height', '0');
-    graph.call(tip);
-    if (localStorage) {
-        var region = localStorage.getItem('region');
-        if (region) form.select('select').property('value', region);
-    }
-    var dateFormatter = d3.time.format('%a %b %e %Y %I:%M %p');
-    form.on('submit', function() {
-        d3.event.preventDefault();
+    function onSubmit() {
+        if (d3.event) d3.event.preventDefault();
         var name = form.select('input').property('value').trim();
         var region = form.select('select').property('value');
         if (name.length > 0) {
@@ -66,16 +50,44 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 stats.append('div').text('avg time/day: ' + Math.round(total / matchesByDay.length / 360) / 10 + ' hrs');
             }).fail(function(err) {
                 console.log(err);
-                status.text('error: ' + JSON.stringify(err));
+                if (err.jsonBody && err.jsonBody.error) {
+                    status.text('error: ' + err.jsonBody.error.message);
+                } else {
+                    status.text('error: ' + err.statusCode);
+                }
                 form.select('button').classed('disabled', false);
             });
         }
+    }
+    var img = d3.select('#icon');
+    var form = d3.select('#search');
+    var status = d3.select('#status');
+    var matchDisplay = d3.select('#matches');
+    var stats = d3.select('#stats');
+    // only certain methods (not classed) are proxied :\
+    tip = d3.tip().attr('class', 'd3-tip').offset([-10, 0]).html(function(d) {
+        return Math.round(d.time * 10) / 10 + ' hrs';
     });
+    var graph = d3.select('#graph').append('svg').attr('width', '0').attr('height', '0');
+    graph.call(tip);
+    if (localStorage) {
+        var region = localStorage.getItem('region');
+        if (region) form.select('select').property('value', region);
+    }
+    var dateFormatter = d3.time.format('%a %b %e %Y %I:%M %p');
     d3.select('#matchesToggle').on('click', function() {
         var hidden = matchDisplay.classed('hidden');
         matchDisplay.classed('hidden', !hidden);
         d3.select(this).text((hidden ? 'hide' : 'show') + ' match data');
     });
+    form.on('submit', onSubmit);
+    if (window.location.hash) {
+        var str = window.location.hash.slice(1);
+        if (str) {
+            form.select('input')[0][0].value = str;
+            onSubmit();
+        }
+    }
 });
 
 function getPrettyDuration(duration) {

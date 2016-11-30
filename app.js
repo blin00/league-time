@@ -21,6 +21,8 @@ const API_GET_ID = '/v1.4/summoner/by-name/';
 const API_GET_MATCH = '/v2.2/match/';
 const API_GET_MATCHLIST = '/v2.2/matchlist/by-summoner/';
 
+const SEARCH_ID_PREFIX = 'id:';
+
 const memcache = memjs.Client.create(config.memcachedServer, {username: config.memcachedUser, password: config.memcachedPass});
 
 function getCache(key) {
@@ -84,7 +86,10 @@ function getRiotApi(region, api, tries) {
 }
 
 function getSummonerId(region, name) {
-    if (name === null) return new Promise(function(resolve, reject) { reject(buildError('invalid summoner name', 400)); });
+    if (name == null) return Promise.reject(buildError('invalid summoner name', 400));
+    if (name.startsWith(SEARCH_ID_PREFIX)) {
+        return Promise.resolve(+name.slice(SEARCH_ID_PREFIX.length));
+    }
     var cacheKey = region + ':' + name;
     return getCache(cacheKey).then(function(id) { return +id; }).catch(function(err) {
         return getRiotApi(region, API_GET_ID + encodeURIComponent(name)).then(function(result) {
@@ -197,16 +202,16 @@ app.get('/matches', function(req, res) {
     res.set('Content-Type', 'application/json');
     var region = req.query.region;
     if (!validateRegion(region)) {
-        res.send(buildErrorJSONString(buildError('invalid region', 400)));
+        res.status(400).send(buildErrorJSONString(buildError('invalid region', 400)));
         return;
     }
     var summoner = getStandardName(req.query.summoner);
     getSummonerId(region, summoner).then(function(id) {
         return getMatchListById(region, id, res);
     }).then(function(result) {
-        if (result !== null) res.send({matches: result});
+        if (result != null) res.send({matches: result});
     }).catch(function(err) {
-        res.send(buildErrorJSONString(err));
+        res.status(err.code).send(buildErrorJSONString(err));
     });
 });
 
