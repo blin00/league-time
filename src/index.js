@@ -26,8 +26,8 @@ document.addEventListener('DOMContentLoaded', function(event) {
             stats.selectAll('div').remove();
             graph.attr('width', '0').attr('height', '0').select('g').remove();
             oboe('/matches?region=' + region + '&summoner=' + encodeURIComponent(name)).node('!.$matches.*', function(matches) {
-                matchDisplay.selectAll('div.match').data(matches, function(d) { return d.matchId; }).enter().append('div').classed('match', true).text(function(d) {
-                    return dateFormatter(new Date(d.matchCreation)) + ': ' + getPrettyDuration(d.matchDuration) + ' | ' + (d.winner ? 'W' : 'L');
+                matchDisplay.selectAll('div.match').data(matches, function(d) { return d.gameId; }).enter().append('div').classed('match', true).text(function(d) {
+                    return dateFormatter(new Date(d.gameCreation)) + ': ' + getPrettyDuration(d.gameDuration) + ' | ' + (d.win ? 'W' : 'L');
                 });
                 drawBarGraphThrottled(graph, getMatchesByDay(matches));
             }).done(function(json) {
@@ -42,8 +42,8 @@ document.addEventListener('DOMContentLoaded', function(event) {
                 var matchesByDay = getMatchesByDay(matches);
                 drawBarGraphThrottled.cancel();
                 drawBarGraph(graph, matchesByDay);
-                var total = sum(map(matches, 'matchDuration'));
-                var wins = reduce(map(matches, 'winner'), function(total, winner) { return total + (winner ? 1 : 0); }, 0);
+                var total = sum(map(matches, 'gameDuration'));
+                var wins = reduce(map(matches, 'win'), function(total, win) { return total + (win ? 1 : 0); }, 0);
                 stats.append('div').text('won ' + wins + '/' + matches.length + ' games (' + Math.round(wins / matches.length * 1000) / 10 + '%)');
                 stats.append('div').text('total time: ' + Math.round(total / 360) / 10 + ' hrs');
                 stats.append('div').text('avg time/game: ' + getPrettyDuration(total / matches.length));
@@ -134,18 +134,18 @@ var drawBarGraphThrottled = throttle(drawBarGraph, 500, {leading: false});
 
 function getMatchesByDay(matches) {
     if (matches.length === 0) return [];
-    var days = d3.time.days(d3.time.day(new Date(matches[matches.length - 1].matchCreation)), matches[0].matchCreation + 1);
+    var days = d3.time.days(d3.time.day(new Date(matches[matches.length - 1].gameCreation)), matches[0].gameCreation + 1);
     var result = new Array(days.length);
     result[0] = {day: days[0], matches: 0, time: 0};
     var i, j = 0;
     for (i = matches.length - 1; i >= 0; i--) {
         var match = matches[i];
-        while (+d3.time.day(new Date(match.matchCreation)) !== +days[j]) {
+        while (+d3.time.day(new Date(match.gameCreation)) !== +days[j]) {
             j++;
             result[j] = {day: days[j], matches: 0, time: 0};
         }
         result[j].matches++;
-        result[j].time += match.matchDuration / 3600;
+        result[j].time += match.gameDuration / 3600;
     }
     return result;
 }
